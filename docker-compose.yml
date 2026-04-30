@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  gallery:
+    build: .
+    container_name: kai_multimedia_gallery
+    depends_on:
+      - redis
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./public/media:/app/public/media
+    restart: always
+  redis:
+    image: redis:alpine
+    container_name: gallery_db
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: always
+
+volumes:
+  redis-data:

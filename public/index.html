@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kai's Gallery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            --bg-night: #081420;
+            --bg-ink: rgba(6, 17, 27, 0.78);
+            --bg-panel: rgba(10, 29, 45, 0.76);
+            --line-soft: rgba(160, 220, 255, 0.16);
+            --text-main: #f4f2ea;
+            --text-muted: #b7c7d3;
+            --accent: #ff8f3f;
+            --accent-strong: #ffd166;
+            --accent-cool: #79d7ff;
+            --success: #8fd694;
+            --danger: #ff7a7a;
+            --shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
+            --radius-lg: 24px;
+            --radius-md: 18px;
+            --radius-sm: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at top left, rgba(121, 215, 255, 0.2), transparent 28%),
+                radial-gradient(circle at top right, rgba(255, 143, 63, 0.18), transparent 30%),
+                linear-gradient(180deg, #0a1622 0%, #050c15 100%);
+            color: var(--text-main);
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+            background-size: 48px 48px;
+            mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.4), transparent 75%);
+        }
+
+        a-scene {
+            position: fixed;
+            inset: 0;
+        }
+
+        .hud {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            pointer-events: none;
+            padding: 18px;
+            display: grid;
+            grid-template-columns: minmax(300px, 420px) 1fr;
+            grid-template-rows: auto 1fr auto;
+            gap: 16px;
+        }
+
+        .hud-column {
+            grid-column: 1;
+            display: grid;
+            align-content: start;
+            gap: 16px;
+            width: min(100%, 420px);
+        }
+
+        .hud-toggle {
+            position: relative;
+            z-index: 12;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border: 1px solid rgba(121, 215, 255, 0.18);
+            border-radius: 999px;
+            background: rgba(4, 12, 19, 0.84);
+            color: var(--text-main);
+            font: inherit;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            cursor: pointer;
+            pointer-events: auto;
+            backdrop-filter: blur(18px);
+            box-shadow: var(--shadow);
+            transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+            justify-self: start;
+            width: fit-content;
+        }
+
+        .hud-toggle:hover {
+            transform: translateY(-1px);
+            border-color: rgba(255, 143, 63, 0.28);
+        }
+
+        .audio-unlock {
+            margin-top: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 46px;
+            padding: 12px 18px;
+            border: 1px solid rgba(255, 209, 102, 0.34);
+            border-radius: 999px;
+            background: linear-gradient(135deg, rgba(255, 209, 102, 0.2), rgba(121, 215, 255, 0.14));
+            color: var(--text-main);
+            font: inherit;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+        }
+
+        .audio-unlock:hover {
+            transform: translateY(-1px);
+            border-color: rgba(255, 209, 102, 0.6);
+            background: linear-gradient(135deg, rgba(255, 209, 102, 0.28), rgba(121, 215, 255, 0.2));
+        }
+
+        .audio-unlock[data-ready="true"] {
+            border-color: rgba(143, 214, 148, 0.56);
+            background: linear-gradient(135deg, rgba(143, 214, 148, 0.26), rgba(121, 215, 255, 0.16));
+        }
+
+        .hud-toggle .hud-toggle-icon {
+            display: grid;
+            place-items: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 999px;
+            background: rgba(255, 143, 63, 0.14);
+            color: var(--accent-strong);
+            font-size: 15px;
+        }
+
+        .panel {
+            pointer-events: auto;
+            background: var(--bg-panel);
+            border: 1px solid var(--line-soft);
+            border-radius: var(--radius-lg);
+            backdrop-filter: blur(18px);
+            box-shadow: var(--shadow);
+            transition: opacity 220ms ease, transform 220ms ease;
+        }
+
+        .hero {
+            padding: 22px 24px;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: rgba(255, 209, 102, 0.12);
+            border: 1px solid rgba(255, 209, 102, 0.25);
+            color: var(--accent-strong);
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 14px 0 10px;
+            font-family: 'Syne', sans-serif;
+            font-size: clamp(2.3rem, 5vw, 4.2rem);
+            line-height: 0.96;
+            letter-spacing: -0.04em;
+        }
+
+        .hero p,
+        .panel p,
+        .board-note,
+        .status {
+            margin: 0;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .hero-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .chip {
+            padding: 12px 14px;
+            border-radius: var(--radius-md);
+            background: var(--bg-ink);
+            border: 1px solid rgba(121, 215, 255, 0.12);
+        }
+
+        .chip strong {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--text-main);
+            font-size: 14px;
+        }
+
+        .leaderboard {
+            padding: 18px 18px 16px;
+        }
+
+        .leaderboard h2,
+        .tray-header h2 {
+            margin: 0;
+            font-family: 'Syne', sans-serif;
+            font-size: 1.3rem;
+            letter-spacing: -0.03em;
+        }
+
+        .board-note {
+            margin-top: 6px;
+            font-size: 14px;
+        }
+
+        .leaderboard ol {
+            list-style: none;
+            margin: 16px 0 0;
+            padding: 0;
+            display: grid;
+            gap: 10px;
+        }
+
+        .leaderboard li {
+            display: grid;
+            grid-template-columns: 40px 1fr auto;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: var(--radius-md);
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .leaderboard li .rank {
+            width: 40px;
+            height: 40px;
+            display: grid;
+            place-items: center;
+            border-radius: 12px;
+            background: rgba(255, 143, 63, 0.14);
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .leaderboard li .name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-weight: 500;
+        }
+
+        .leaderboard li .count {
+            color: var(--accent-strong);
+            font-weight: 700;
+        }
+
+        .status-bar {
+            grid-column: 1 / span 2;
+            align-self: end;
+            justify-self: center;
+            width: min(calc(100% - 420px), 560px);
+            padding: 14px 18px;
+            border-radius: 999px;
+            text-align: center;
+            background: rgba(4, 12, 19, 0.84);
+            border: 1px solid rgba(121, 215, 255, 0.18);
+            box-shadow: var(--shadow);
+            transform: translateY(0);
+            transition: opacity 200ms ease, transform 200ms ease;
+        }
+
+        .status-bar[data-tone="success"] {
+            border-color: rgba(143, 214, 148, 0.32);
+        }
+
+        .status-bar[data-tone="error"] {
+            border-color: rgba(255, 122, 122, 0.28);
+        }
+
+        .tray {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            bottom: 186px;
+            z-index: 11;
+            pointer-events: auto;
+            width: min(340px, calc(100vw - 36px));
+            padding: 18px;
+            background: rgba(4, 12, 19, 0.84);
+            border: 1px solid rgba(121, 215, 255, 0.16);
+            border-radius: 26px;
+            backdrop-filter: blur(18px);
+            box-shadow: var(--shadow);
+            transition: opacity 220ms ease, transform 220ms ease;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 14px;
+        }
+
+        body.overlay-collapsed .hero,
+        body.overlay-collapsed .leaderboard,
+        body.overlay-collapsed .tray {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(12px);
+        }
+
+        body.overlay-collapsed .status-bar {
+            width: min(100%, 420px);
+        }
+
+        .tray-header {
+            display: flex;
+            align-items: start;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .tray-header p {
+            color: var(--text-muted);
+            max-width: 28ch;
+        }
+
+        .gallery-rail {
+            display: grid;
+            grid-auto-flow: row;
+            grid-auto-rows: minmax(224px, auto);
+            gap: 14px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 6px;
+            padding-bottom: 4px;
+            scroll-snap-type: y proximity;
+            align-content: start;
+        }
+
+        .gallery-rail::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .gallery-rail::-webkit-scrollbar-thumb {
+            background: rgba(121, 215, 255, 0.2);
+            border-radius: 999px;
+        }
+
+        .media-card {
+            scroll-snap-align: start;
+            display: grid;
+            gap: 12px;
+            padding: 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            background:
+                linear-gradient(180deg, rgba(121, 215, 255, 0.08), transparent 30%),
+                rgba(255, 255, 255, 0.03);
+            transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+            align-content: start;
+            max-height: 400px;
+        }
+
+        .media-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 143, 63, 0.22);
+        }
+
+        .media-card[data-voted="true"] {
+            border-color: rgba(143, 214, 148, 0.36);
+            background:
+                linear-gradient(180deg, rgba(143, 214, 148, 0.08), transparent 30%),
+                rgba(255, 255, 255, 0.03);
+        }
+
+        .preview {
+            width: 100%;
+            aspect-ratio: 16 / 10;
+            border-radius: 16px;
+            overflow: hidden;
+            background: linear-gradient(135deg, rgba(255, 143, 63, 0.22), rgba(121, 215, 255, 0.12));
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            display: grid;
+            place-items: center;
+        }
+
+        .preview img,
+        .preview video,
+        .preview audio {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .preview.audio-preview {
+            padding: 18px;
+            text-align: center;
+            color: var(--text-main);
+            font-size: 15px;
+        }
+
+        .preview.audio-player {
+            grid-template-rows: minmax(0, 1fr) auto;
+            gap: 12px;
+            padding: 14px;
+            align-items: stretch;
+        }
+
+        .preview.audio-player img,
+        .preview.audio-player .audio-preview-copy {
+            width: 100%;
+            min-height: 0;
+            border-radius: 14px;
+        }
+
+        .preview.audio-player img {
+            height: 100%;
+        }
+
+        .preview.audio-player .audio-preview-copy {
+            display: grid;
+            place-items: center;
+            padding: 18px;
+            background: rgba(8, 20, 32, 0.72);
+            text-align: center;
+            color: var(--text-main);
+            font-size: 15px;
+        }
+
+        .player-controls {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .player-controls button {
+            flex: 1;
+            appearance: none;
+            border: 1px solid rgba(121, 215, 255, 0.18);
+            border-radius: 999px;
+            min-height: 42px;
+            padding: 10px 14px;
+            background: rgba(6, 17, 27, 0.9);
+            color: var(--text-main);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+        }
+
+        .player-controls button:hover {
+            transform: translateY(-1px);
+            border-color: rgba(255, 143, 63, 0.34);
+            background: rgba(10, 29, 45, 0.96);
+        }
+
+        .player-controls button:disabled {
+            opacity: 0.62;
+            cursor: progress;
+            transform: none;
+        }
+
+        .preview.audio-preview span {
+            display: block;
+            font-size: 42px;
+            margin-bottom: 10px;
+        }
+
+        .card-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .card-title {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-weight: 700;
+        }
+
+        .badge {
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(121, 215, 255, 0.12);
+            color: var(--accent-cool);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        .card-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .vote-count {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .vote-button {
+            appearance: none;
+            border: 0;
+            border-radius: 999px;
+            padding: 10px 16px;
+            font: inherit;
+            font-weight: 700;
+            color: #09131f;
+            background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+            cursor: pointer;
+            transition: transform 180ms ease, opacity 180ms ease, filter 180ms ease;
+        }
+
+        .vote-button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            filter: brightness(1.03);
+        }
+
+        .vote-button:disabled {
+            cursor: default;
+            opacity: 0.6;
+        }
+
+        .virtual-controls {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            z-index: 12;
+            width: 156px;
+            max-height: calc(100vh - 36px);
+            padding: 12px;
+            border-radius: 24px;
+            border: 1px solid rgba(121, 215, 255, 0.18);
+            background: rgba(4, 12, 19, 0.84);
+            backdrop-filter: blur(18px);
+            box-shadow: var(--shadow);
+            pointer-events: auto;
+            overflow: hidden;
+        }
+
+        .virtual-controls h3 {
+            margin: 0 0 10px;
+            font-family: 'Syne', sans-serif;
+            font-size: 1rem;
+            letter-spacing: -0.03em;
+        }
+
+        .virtual-controls p {
+            margin: 0 0 10px;
+            color: var(--text-muted);
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .control-pad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .control-pad .spacer {
+            pointer-events: none;
+        }
+
+        .nav-button {
+            appearance: none;
+            border: 1px solid rgba(121, 215, 255, 0.16);
+            border-radius: 16px;
+            min-height: 42px;
+            font: inherit;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-main);
+            background: linear-gradient(180deg, rgba(121, 215, 255, 0.14), rgba(255, 255, 255, 0.05));
+            cursor: pointer;
+            transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+        }
+
+        .nav-button:hover,
+        .nav-button:focus-visible {
+            transform: translateY(-1px);
+            border-color: rgba(255, 143, 63, 0.28);
+            outline: none;
+        }
+
+        .nav-button:active {
+            transform: translateY(1px);
+        }
+
+        .empty-state {
+            padding: 30px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 980px) {
+            .hud {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr auto;
+                padding: 14px;
+            }
+
+            .hud-column {
+                width: min(100%, calc(100vw - 28px));
+            }
+
+            .status-bar {
+                grid-column: 1;
+                width: min(calc(100% - 20px), 520px);
+            }
+
+            .hero-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tray {
+                top: auto;
+                left: 12px;
+                right: 12px;
+                bottom: 164px;
+                width: auto;
+                max-height: 28vh;
+                padding: 16px;
+            }
+
+            .tray-header {
+                flex-direction: column;
+                align-items: start;
+            }
+
+            .gallery-rail {
+                grid-auto-flow: column;
+                grid-auto-columns: minmax(220px, 80vw);
+                grid-auto-rows: unset;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding-right: 0;
+                padding-bottom: 8px;
+                scroll-snap-type: x proximity;
+                align-content: normal;
+            }
+
+            .gallery-rail::-webkit-scrollbar {
+                width: auto;
+                height: 10px;
+            }
+
+            .virtual-controls {
+                right: 12px;
+                bottom: 12px;
+                width: 150px;
+                padding: 12px;
+            }
+
+            .media-card {
+                max-height: none;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .hud {
+                padding-bottom: 0;
+            }
+
+            .hero {
+                padding: 18px;
+            }
+
+            .leaderboard {
+                padding: 16px;
+            }
+
+            .leaderboard li {
+                grid-template-columns: 34px 1fr auto;
+                gap: 10px;
+            }
+
+            .virtual-controls h3,
+            .virtual-controls p {
+                display: none;
+            }
+
+            .virtual-controls {
+                width: 144px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="hud" id="gallery-overlay">
+        <div class="hud-column">
+            <button class="hud-toggle" id="hud-toggle" type="button" aria-expanded="true" aria-controls="gallery-overlay">
+                <span class="hud-toggle-icon" id="hud-toggle-icon">-</span>
+                <span id="hud-toggle-label">Hide controls</span>
+            </button>
+
+            <section class="panel hero">
+                <div class="eyebrow">Live salon</div>
+                <h1>Kai Gallery</h1>
+                <p>A brighter voting deck with one vote per piece, cleaner feedback, and a control layout that works with mouse, keyboard, and touch.</p>
+                <div class="hero-grid">
+                    <div class="chip">
+                        <strong>Vote rules</strong>
+                        <span>Each visitor gets exactly one vote per artwork or clip.</span>
+                    </div>
+                    <div class="chip">
+                        <strong id="control-label">Desktop mode</strong>
+                        <span id="control-copy">Use mouse plus WASD to roam the room, or vote from the card rail below.</span>
+                    </div>
+                </div>
+                <button class="audio-unlock" id="audio-unlock" type="button" data-ready="false">Enable audio</button>
+            </section>
+
+            <aside class="panel leaderboard">
+                <h2>Top picks</h2>
+                <p class="board-note">Live results update as votes land.</p>
+                <ol id="v-list">
+                    <li><span class="name">No votes yet</span></li>
+                </ol>
+            </aside>
+        </div>
+
+        <div class="status-bar panel" id="status-bar" data-tone="info">
+            <p class="status" id="status-text">Loading gallery…</p>
+        </div>
+    </div>
+
+    <section class="tray">
+        <div class="tray-header">
+            <div>
+                <h2>Vote deck</h2>
+                <p>Scroll the rail, preview each piece, and cast one vote per item. The scene stays cinematic; the controls stay practical.</p>
+            </div>
+        </div>
+        <div class="gallery-rail" id="gallery-rail"></div>
+    </section>
+
+    <section class="virtual-controls" aria-label="Virtual movement controls">
+        <h3>Move</h3>
+        <p>Tap to glide through the room.</p>
+        <div class="control-pad">
+            <span class="spacer"></span>
+            <button class="nav-button" type="button" data-move="forward" aria-label="Move forward">▲</button>
+            <span class="spacer"></span>
+            <button class="nav-button" type="button" data-move="left" aria-label="Move left">◀</button>
+            <button class="nav-button" type="button" data-move="back" aria-label="Move backward">▼</button>
+            <button class="nav-button" type="button" data-move="right" aria-label="Move right">▶</button>
+        </div>
+    </section>
+
+    <a-scene embedded fog="type: exponential; color: #070d16; density: 0.018">
+        <a-assets id="scene-assets"></a-assets>
+        <a-sky color="#060b14"></a-sky>
+        <a-entity light="type: ambient; intensity: 0.34; color: #79d7ff"></a-entity>
+        <a-entity light="type: point; intensity: 0.92; color: #ffd166" position="0 7 1"></a-entity>
+        <a-entity light="type: point; intensity: 0.76; color: #ff4fd8" position="9 4 -10"></a-entity>
+        <a-entity light="type: point; intensity: 0.72; color: #3de0ff" position="-9 4 -10"></a-entity>
+        <a-entity light="type: spot; intensity: 0.95; angle: 34; penumbra: 0.4; color: #9ce8ff" position="0 8 10" rotation="-35 0 0"></a-entity>
+        <a-plane rotation="-90 0 0" width="84" height="84" color="#071019" material="metalness: 0.18; roughness: 0.8"></a-plane>
+        <a-entity id="camera-rig" position="0 0 2">
+            <a-camera id="main-camera" wasd-controls="acceleration: 30" look-controls="mouseEnabled: true">
+                <a-cursor color="#ffd166" raycaster="objects: .interactive, [data-raycastable]"></a-cursor>
+            </a-camera>
+        </a-entity>
+        <a-entity id="environment"></a-entity>
+        <a-entity id="walls"></a-entity>
+    </a-scene>
+
+    <script>
+        const socket = io();
+        const votes = {};
+        const myVotes = new Set();
+        const pendingVotes = new Set();
+        const mediaMetadata = {};
+        const mediaPlaybackState = {};
+        const sceneMediaWrappers = new Map();
+        const spatialAudioNodes = new Map();
+        let mediaFiles = [];
+        let audioContext = null;
+        let audioUnlocked = false;
+
+        const PROXIMITY_AUDIO_TRIGGER_DISTANCE = 5.75;
+        const PROXIMITY_AUDIO_MAX_DISTANCE = 11.5;
+        const PROXIMITY_AUDIO_FRONT_DOT = 0.84;
+        const PROXIMITY_AUDIO_LOOK_DOT = 0.72;
+        const spatialVectors = {
+            cameraPosition: new THREE.Vector3(),
+            cameraDirection: new THREE.Vector3(),
+            sourcePosition: new THREE.Vector3(),
+            sourceForward: new THREE.Vector3(),
+            toCamera: new THREE.Vector3(),
+            toSource: new THREE.Vector3()
+        };
+
+        const statusBar = document.getElementById('status-bar');
+        const statusText = document.getElementById('status-text');
+        const galleryRail = document.getElementById('gallery-rail');
+        const leaderboard = document.getElementById('v-list');
+        const cameraRig = document.getElementById('camera-rig');
+        const walls = document.getElementById('walls');
+        const environment = document.getElementById('environment');
+        const sceneAssets = document.getElementById('scene-assets');
+        const hudToggle = document.getElementById('hud-toggle');
+        const hudToggleIcon = document.getElementById('hud-toggle-icon');
+        const hudToggleLabel = document.getElementById('hud-toggle-label');
+        const controlLabel = document.getElementById('control-label');
+        const controlCopy = document.getElementById('control-copy');
+        const audioUnlockButton = document.getElementById('audio-unlock');
+        const mainCamera = document.getElementById('main-camera');
+        const navButtons = Array.from(document.querySelectorAll('[data-move]'));
+        const isMobile = window.matchMedia('(max-width: 980px)').matches || window.matchMedia('(pointer: coarse)').matches;
+        const overlayStateKey = 'kai-gallery-overlay-collapsed';
+
+        function setStatus(message, tone = 'info') {
+            statusBar.dataset.tone = tone;
+            statusText.textContent = message;
+        }
+
+        function updateAudioUnlockUI() {
+            if (!audioUnlockButton) return;
+
+            const ready = Boolean(audioContext && audioContext.state === 'running');
+            audioUnlockButton.dataset.ready = ready ? 'true' : 'false';
+            audioUnlockButton.textContent = ready ? 'Audio enabled' : 'Enable audio';
+            audioUnlockButton.disabled = ready;
+        }
+
+        function setOverlayCollapsed(collapsed) {
+            document.body.classList.toggle('overlay-collapsed', collapsed);
+            hudToggle.setAttribute('aria-expanded', String(!collapsed));
+            hudToggleIcon.textContent = collapsed ? '+' : '-';
+            hudToggleLabel.textContent = collapsed ? 'Show controls' : 'Hide controls';
+            localStorage.setItem(overlayStateKey, collapsed ? '1' : '0');
+        }
+
+        function getMediaType(file) {
+            const lower = file.toLowerCase();
+            if (lower.endsWith('.mp4')) return 'video';
+            if (lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.ogg')) return 'audio';
+            return 'image';
+        }
+
+        function getLabel(file) {
+            return file.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ');
+        }
+
+        function truncateLabel(file, max = 28) {
+            const label = getLabel(file);
+            return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+        }
+
+        function getCount(file) {
+            return Number(votes[file] || 0);
+        }
+
+        function getMetadata(file) {
+            return mediaMetadata[file] || { file, title: getLabel(file), artist: '', artwork: null, type: getMediaType(file) };
+        }
+
+        function getDisplayTitle(file) {
+            return getMetadata(file).title || getLabel(file);
+        }
+
+        function getDisplayArtist(file) {
+            return getMetadata(file).artist || '';
+        }
+
+        function getCoverAssetId(file) {
+            return `cover-${CSS.escape(file).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+        }
+
+        function moveCamera(direction) {
+            const rigPosition = cameraRig.getAttribute('position') || { x: 0, y: 0, z: 2 };
+            const step = isMobile ? 0.8 : 1.1;
+            const nextPosition = { ...rigPosition };
+
+            if (direction === 'forward') nextPosition.z -= step;
+            if (direction === 'back') nextPosition.z += step;
+            if (direction === 'left') nextPosition.x -= step;
+            if (direction === 'right') nextPosition.x += step;
+
+            nextPosition.x = Math.max(-12, Math.min(12, nextPosition.x));
+            nextPosition.z = Math.max(-18, Math.min(8, nextPosition.z));
+            cameraRig.setAttribute('position', `${nextPosition.x} ${nextPosition.y} ${nextPosition.z}`);
+        }
+
+        function configureControls() {
+            if (isMobile) {
+                controlLabel.textContent = 'Mobile mode';
+                controlCopy.textContent = 'Swipe the vote deck, use the nav pad, then step straight in front of an audio poster to hear it nearby. Tap cover art or Play for manual video control.';
+                mainCamera.setAttribute('wasd-controls', 'enabled: false');
+                mainCamera.setAttribute('look-controls', 'touchEnabled: true; mouseEnabled: false');
+            } else {
+                controlLabel.textContent = 'Desktop mode';
+                controlCopy.textContent = 'Use mouse plus WASD to roam. Audio starts only when you walk straight up to a poster; video still starts from the cover or Play button.';
+                mainCamera.setAttribute('wasd-controls', 'acceleration: 30');
+                mainCamera.setAttribute('look-controls', 'mouseEnabled: true');
+            }
+        }
+
+        function ensureAudioContext(createIfNeeded = true) {
+            if (!window.AudioContext && !window.webkitAudioContext) {
+                return null;
+            }
+
+            if (createIfNeeded && !audioUnlocked) {
+                return null;
+            }
+
+            const hasActiveUserGesture = Boolean(navigator.userActivation?.isActive);
+
+            if (!audioContext && createIfNeeded) {
+                if (!hasActiveUserGesture) {
+                    return null;
+                }
+                const ContextCtor = window.AudioContext || window.webkitAudioContext;
+                audioContext = new ContextCtor();
+            }
+
+            if (!audioContext) {
+                return null;
+            }
+
+            if (audioContext.state === 'suspended') {
+                if (!hasActiveUserGesture) {
+                    return audioContext;
+                }
+                audioContext.resume().catch(() => {});
+            }
+
+            return audioContext;
+        }
+
+        function unlockAudio() {
+            audioUnlocked = true;
+            const context = ensureAudioContext(true);
+            updateAudioUnlockUI();
+            return context;
+        }
+
+        function updateAudioListenerTransform() {
+            if (!audioContext) return;
+
+            const listener = audioContext.listener;
+            mainCamera.object3D.getWorldPosition(spatialVectors.cameraPosition);
+            mainCamera.object3D.getWorldDirection(spatialVectors.cameraDirection);
+
+            const upX = 0;
+            const upY = 1;
+            const upZ = 0;
+
+            if (listener.positionX) {
+                listener.positionX.value = spatialVectors.cameraPosition.x;
+                listener.positionY.value = spatialVectors.cameraPosition.y;
+                listener.positionZ.value = spatialVectors.cameraPosition.z;
+                listener.forwardX.value = spatialVectors.cameraDirection.x;
+                listener.forwardY.value = spatialVectors.cameraDirection.y;
+                listener.forwardZ.value = spatialVectors.cameraDirection.z;
+                listener.upX.value = upX;
+                listener.upY.value = upY;
+                listener.upZ.value = upZ;
+            } else if (listener.setPosition && listener.setOrientation) {
+                listener.setPosition(spatialVectors.cameraPosition.x, spatialVectors.cameraPosition.y, spatialVectors.cameraPosition.z);
+                listener.setOrientation(spatialVectors.cameraDirection.x, spatialVectors.cameraDirection.y, spatialVectors.cameraDirection.z, upX, upY, upZ);
+            }
+        }
+
+        function ensureSpatialAudioNode(file, media) {
+            if (spatialAudioNodes.has(file)) {
+                return spatialAudioNodes.get(file);
+            }
+
+            const context = ensureAudioContext(true);
+            if (!context || !media) {
+                return null;
+            }
+
+            const source = context.createMediaElementSource(media);
+            const gain = context.createGain();
+            const panner = context.createPanner();
+
+            panner.panningModel = 'HRTF';
+            panner.distanceModel = 'exponential';
+            panner.refDistance = 1.6;
+            panner.maxDistance = PROXIMITY_AUDIO_MAX_DISTANCE;
+            panner.rolloffFactor = 1.9;
+            panner.coneInnerAngle = 70;
+            panner.coneOuterAngle = 150;
+            panner.coneOuterGain = 0.18;
+            gain.gain.value = 1;
+
+            source.connect(gain);
+            gain.connect(panner);
+            panner.connect(context.destination);
+
+            const node = { source, gain, panner };
+            spatialAudioNodes.set(file, node);
+            return node;
+        }
+
+        async function playMedia(file, { auto = false, suppressStatus = false } = {}) {
+            const media = getMediaElement(file);
+            if (!media) return false;
+
+            if (getMediaType(file) === 'audio') {
+                const context = ensureAudioContext(true);
+                if (!context) {
+                    if (!suppressStatus) {
+                        setStatus(`Click or tap the page once to enable audio for ${truncateLabel(getDisplayTitle(file), 20)}.`, 'info');
+                    }
+                    return false;
+                }
+
+                ensureSpatialAudioNode(file, media);
+            }
+
+            try {
+                await media.play();
+                const state = ensurePlaybackState(file);
+                state.playing = true;
+                state.autoTriggered = auto;
+                if (!suppressStatus) {
+                    setStatus(`Playing ${truncateLabel(getDisplayTitle(file), 20)}.`, 'success');
+                }
+                updateMediaControlState(file);
+                return true;
+            } catch (error) {
+                console.error(error);
+                if (!suppressStatus) {
+                    setStatus(`Playback could not start for ${truncateLabel(getDisplayTitle(file), 20)}.`, 'error');
+                }
+                updateMediaControlState(file);
+                return false;
+            }
+        }
+
+        function pauseMedia(file, { suppressStatus = false } = {}) {
+            const media = getMediaElement(file);
+            if (!media || media.paused) return;
+
+            media.pause();
+            const state = ensurePlaybackState(file);
+            state.playing = false;
+            state.autoTriggered = false;
+            if (!suppressStatus) {
+                setStatus(`Paused ${truncateLabel(getDisplayTitle(file), 20)}.`);
+            }
+            updateMediaControlState(file);
+        }
+
+        hudToggle.addEventListener('click', () => {
+            setOverlayCollapsed(!document.body.classList.contains('overlay-collapsed'));
+        });
+
+        navButtons.forEach(button => {
+            button.addEventListener('click', () => moveCamera(button.dataset.move));
+        });
+
+        function createAsset(file) {
+            const id = `asset-${CSS.escape(file).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+            if (document.getElementById(id)) return id;
+
+            const type = getMediaType(file);
+            const asset = document.createElement(type === 'video' ? 'video' : type === 'audio' ? 'audio' : 'img');
+            asset.id = id;
+            asset.setAttribute('src', `media/${file}`);
+            if (type !== 'image') {
+                asset.setAttribute('crossorigin', 'anonymous');
+            }
+            if (type === 'video') {
+                asset.setAttribute('loop', 'true');
+                asset.setAttribute('muted', 'true');
+                asset.setAttribute('playsinline', 'true');
+            }
+            if (type === 'audio') {
+                asset.setAttribute('preload', 'auto');
+            }
+
+            const refreshLayout = () => {
+                const wrapper = walls.querySelector(`[data-file="${CSS.escape(file)}"]`);
+                if (wrapper) {
+                    applySceneMediaLayout(wrapper, type, id);
+                }
+            };
+
+            if (type === 'image') {
+                asset.addEventListener('load', refreshLayout, { once: true });
+            }
+            if (type === 'video') {
+                asset.addEventListener('loadedmetadata', refreshLayout, { once: true });
+            }
+
+            sceneAssets.appendChild(asset);
+            return id;
+        }
+
+        function createCoverAsset(file) {
+            const metadata = getMetadata(file);
+            if (!metadata.artwork) return null;
+
+            const id = getCoverAssetId(file);
+            if (document.getElementById(id)) return id;
+
+            const asset = document.createElement('img');
+            asset.id = id;
+            asset.setAttribute('src', metadata.artwork);
+
+            const refreshLayout = () => {
+                const wrapper = walls.querySelector(`[data-file="${CSS.escape(file)}"]`);
+                if (wrapper) {
+                    applySceneMediaLayout(wrapper, 'audio', id);
+                }
+            };
+
+            asset.addEventListener('load', refreshLayout, { once: true });
+            sceneAssets.appendChild(asset);
+            return id;
+        }
+
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        function getSceneMediaSize(type, assetId) {
+            const asset = document.getElementById(assetId);
+            const intrinsicWidth = type === 'video' ? asset?.videoWidth : asset?.naturalWidth;
+            const intrinsicHeight = type === 'video' ? asset?.videoHeight : asset?.naturalHeight;
+            const fallbackRatio = type === 'video' ? 16 / 9 : type === 'audio' ? 1 : 1;
+            const safeRatio = intrinsicWidth && intrinsicHeight ? intrinsicWidth / intrinsicHeight : fallbackRatio;
+            const maxWidth = type === 'video' ? 4.35 : type === 'audio' ? 4 : 4;
+            const maxHeight = type === 'video' ? 3 : type === 'audio' ? 4.2 : 3.4;
+
+            let width = maxWidth;
+            let height = width / safeRatio;
+
+            if (height > maxHeight) {
+                height = maxHeight;
+                width = height * safeRatio;
+            }
+
+            width = clamp(width, type === 'audio' ? 2.1 : 1.7, maxWidth);
+            height = clamp(height, 1.7, maxHeight);
+
+            return {
+                width,
+                height,
+                frameWidth: width + 0.5,
+                frameHeight: height + 0.55
+            };
+        }
+
+        function applySceneMediaLayout(wrapper, type, assetId) {
+            const mediaSize = getSceneMediaSize(type, assetId);
+            const frame = wrapper.querySelector('[data-role="frame"]');
+            const art = wrapper.querySelector('[data-role="art"]');
+            const title = wrapper.querySelector('[data-role="title"]');
+            const subtitle = wrapper.querySelector('[data-role="subtitle"]');
+            const count = wrapper.querySelector('[data-role="count"]');
+            const button = wrapper.querySelector('[data-role="vote-button"]');
+            const label = wrapper.querySelector('[data-role="vote-label"]');
+            const mediaPanel = wrapper.querySelector('[data-role="media-panel"]');
+            const mediaPanelBackdrop = wrapper.querySelector('[data-role="media-panel-backdrop"]');
+            const lowerEdge = -((mediaSize.frameHeight / 2) + 0.58);
+            const mediaPanelY = clamp(-(mediaSize.height / 2) + 0.42, -1.34, -0.68);
+            const mediaPanelWidth = clamp(mediaSize.width - 0.34, 2.4, 3.55);
+
+            if (frame) {
+                frame.setAttribute('width', String(mediaSize.frameWidth));
+                frame.setAttribute('height', String(mediaSize.frameHeight));
+            }
+
+            if (art) {
+                art.setAttribute('width', String(mediaSize.width));
+                art.setAttribute('height', String(mediaSize.height));
+            }
+
+            if (title) {
+                title.setAttribute('position', `0 ${lowerEdge} 0.25`);
+            }
+
+            if (subtitle) {
+                subtitle.setAttribute('position', `0 ${lowerEdge - 0.34} 0.25`);
+            }
+
+            if (count) {
+                count.setAttribute('position', `0 ${lowerEdge - 0.74} 0.25`);
+            }
+
+            if (button) {
+                button.setAttribute('position', `0 ${lowerEdge - 1.32} 0.45`);
+            }
+
+            if (label) {
+                label.setAttribute('position', `0 ${lowerEdge - 1.34} 0.72`);
+            }
+
+            if (mediaPanel) {
+                mediaPanel.setAttribute('position', `0 ${mediaPanelY} 0.18`);
+            }
+
+            if (mediaPanelBackdrop) {
+                mediaPanelBackdrop.setAttribute('width', String(mediaPanelWidth));
+            }
+        }
+
+        function isPlayableMedia(file) {
+            const type = getMediaType(file);
+            return type === 'audio' || type === 'video';
+        }
+
+        function getMediaElement(file) {
+            return document.getElementById(`asset-${CSS.escape(file).replace(/[^a-zA-Z0-9_-]/g, '-')}`);
+        }
+
+        function ensurePlaybackState(file) {
+            if (!mediaPlaybackState[file]) {
+                mediaPlaybackState[file] = {
+                    playing: false,
+                    muted: getMediaType(file) === 'video',
+                    autoTriggered: false,
+                    manualPlaying: false,
+                    proximityActive: false,
+                    userPausedInZone: false
+                };
+            }
+            return mediaPlaybackState[file];
+        }
+
+        function updateCardMediaControlState(file) {
+            const card = galleryRail.querySelector(`[data-file="${CSS.escape(file)}"]`);
+            if (!card) return;
+
+            const state = ensurePlaybackState(file);
+            const playButton = card.querySelector('[data-role="player-play"]');
+            const muteButton = card.querySelector('[data-role="player-mute"]');
+
+            if (playButton) {
+                playButton.textContent = state.playing ? 'Pause' : 'Play';
+            }
+
+            if (muteButton) {
+                muteButton.textContent = state.muted ? 'Unmute' : 'Mute';
+            }
+        }
+
+        function updateMediaControlState(file) {
+            updateSceneMediaControlState(file);
+            updateCardMediaControlState(file);
+        }
+
+        function updateSceneMediaControlState(file) {
+            const wrapper = walls.querySelector(`[data-file="${CSS.escape(file)}"]`);
+            if (!wrapper) return;
+
+            const state = ensurePlaybackState(file);
+            const playLabel = wrapper.querySelector('[data-role="media-play-label"]');
+            const muteLabel = wrapper.querySelector('[data-role="media-mute-label"]');
+
+            if (playLabel) {
+                playLabel.setAttribute('value', state.playing ? 'Pause' : 'Play');
+            }
+
+            if (muteLabel) {
+                muteLabel.setAttribute('value', state.muted ? 'Unmute' : 'Mute');
+            }
+        }
+
+        async function toggleScenePlayback(file) {
+            const media = getMediaElement(file);
+            if (!media) return;
+
+            const state = ensurePlaybackState(file);
+            unlockAudio();
+            if (getMediaType(file) === 'audio' && !state.proximityActive && media.paused) {
+                setStatus(`Walk straight in front of ${truncateLabel(getDisplayTitle(file), 20)} to trigger the audio.`, 'info');
+                return;
+            }
+
+            if (media.paused) {
+                state.userPausedInZone = false;
+                await playMedia(file);
+            } else {
+                pauseMedia(file);
+                if (getMediaType(file) === 'audio' && state.proximityActive) {
+                    state.userPausedInZone = true;
+                }
+            }
+        }
+
+        function toggleSceneMute(file) {
+            const media = getMediaElement(file);
+            if (!media) return;
+
+            const state = ensurePlaybackState(file);
+            media.muted = !media.muted;
+            state.muted = media.muted;
+            updateMediaControlState(file);
+            setStatus(`${media.muted ? 'Muted' : 'Unmuted'} ${truncateLabel(getDisplayTitle(file), 20)}.`);
+        }
+
+        async function toggleCardPlayback(file) {
+            const media = getMediaElement(file);
+            if (!media) return;
+
+            const state = ensurePlaybackState(file);
+            unlockAudio();
+
+            if (media.paused) {
+                state.userPausedInZone = false;
+                const played = await playMedia(file);
+                if (played) {
+                    state.manualPlaying = true;
+                    state.autoTriggered = false;
+                    updateMediaControlState(file);
+                }
+                return;
+            }
+
+            state.manualPlaying = false;
+            pauseMedia(file);
+        }
+
+        function toggleCardMute(file) {
+            const media = getMediaElement(file);
+            if (!media) return;
+
+            unlockAudio();
+            toggleSceneMute(file);
+        }
+
+        function attachMediaStateListeners(file, assetId) {
+            const media = document.getElementById(assetId);
+            if (!media || !isPlayableMedia(file) || media.dataset.boundSceneState === 'true') return;
+
+            media.dataset.boundSceneState = 'true';
+            const state = ensurePlaybackState(file);
+            media.muted = state.muted;
+            if (getMediaType(file) === 'audio') {
+                media.loop = true;
+            }
+            media.addEventListener('play', () => {
+                state.playing = true;
+                updateMediaControlState(file);
+            });
+            media.addEventListener('pause', () => {
+                state.playing = false;
+                state.autoTriggered = false;
+                if (!state.proximityActive) {
+                    state.manualPlaying = false;
+                }
+                updateMediaControlState(file);
+            });
+            media.addEventListener('volumechange', () => {
+                state.muted = media.muted;
+                updateMediaControlState(file);
+            });
+        }
+
+        function updateSpatialAudioSceneState() {
+            if (!mediaFiles.length || !mainCamera.object3D) {
+                requestAnimationFrame(updateSpatialAudioSceneState);
+                return;
+            }
+
+            const context = ensureAudioContext(false);
+            if (!context) {
+                requestAnimationFrame(updateSpatialAudioSceneState);
+                return;
+            }
+            updateAudioListenerTransform();
+
+            let activeAutoAudio = null;
+            let closestDistance = Number.POSITIVE_INFINITY;
+
+            mediaFiles.forEach(file => {
+                if (getMediaType(file) !== 'audio') {
+                    return;
+                }
+
+                const wrapper = sceneMediaWrappers.get(file);
+                const media = getMediaElement(file);
+                if (!wrapper || !media) {
+                    return;
+                }
+
+                const state = ensurePlaybackState(file);
+                const node = ensureSpatialAudioNode(file, media);
+
+                wrapper.object3D.getWorldPosition(spatialVectors.sourcePosition);
+                wrapper.object3D.getWorldDirection(spatialVectors.sourceForward);
+                spatialVectors.toCamera.copy(spatialVectors.cameraPosition).sub(spatialVectors.sourcePosition);
+                const distance = spatialVectors.toCamera.length();
+
+                if (distance > 0.001) {
+                    spatialVectors.toCamera.normalize();
+                }
+
+                spatialVectors.toSource.copy(spatialVectors.sourcePosition).sub(spatialVectors.cameraPosition);
+                if (spatialVectors.toSource.length() > 0.001) {
+                    spatialVectors.toSource.normalize();
+                }
+
+                if (node) {
+                    if (node.panner.positionX) {
+                        node.panner.positionX.value = spatialVectors.sourcePosition.x;
+                        node.panner.positionY.value = spatialVectors.sourcePosition.y;
+                        node.panner.positionZ.value = spatialVectors.sourcePosition.z;
+                        node.panner.orientationX.value = spatialVectors.sourceForward.x;
+                        node.panner.orientationY.value = spatialVectors.sourceForward.y;
+                        node.panner.orientationZ.value = spatialVectors.sourceForward.z;
+                    } else if (node.panner.setPosition && node.panner.setOrientation) {
+                        node.panner.setPosition(spatialVectors.sourcePosition.x, spatialVectors.sourcePosition.y, spatialVectors.sourcePosition.z);
+                        node.panner.setOrientation(spatialVectors.sourceForward.x, spatialVectors.sourceForward.y, spatialVectors.sourceForward.z);
+                    }
+                }
+
+                const sourceFacingVisitor = spatialVectors.sourceForward.dot(spatialVectors.toCamera) >= PROXIMITY_AUDIO_FRONT_DOT;
+                const visitorFacingSource = spatialVectors.cameraDirection.dot(spatialVectors.toSource) <= -PROXIMITY_AUDIO_LOOK_DOT;
+                const withinRange = distance <= PROXIMITY_AUDIO_TRIGGER_DISTANCE;
+                const proximityActive = withinRange && sourceFacingVisitor && visitorFacingSource;
+
+                state.proximityActive = proximityActive;
+
+                if (proximityActive && distance < closestDistance) {
+                    activeAutoAudio = file;
+                    closestDistance = distance;
+                }
+            });
+
+            mediaFiles.forEach(file => {
+                if (getMediaType(file) !== 'audio') {
+                    return;
+                }
+
+                const state = ensurePlaybackState(file);
+                const shouldAutoPlay = state.proximityActive && file === activeAutoAudio;
+
+                if (shouldAutoPlay) {
+                    if (state.userPausedInZone) {
+                        return;
+                    }
+
+                    if (getMediaElement(file)?.paused) {
+                        playMedia(file, { auto: true, suppressStatus: true });
+                    }
+                    return;
+                }
+
+                if (!state.proximityActive) {
+                    state.userPausedInZone = false;
+                }
+
+                if (state.manualPlaying) {
+                    return;
+                }
+
+                if (!getMediaElement(file)?.paused) {
+                    pauseMedia(file, { suppressStatus: true });
+                }
+            });
+
+            requestAnimationFrame(updateSpatialAudioSceneState);
+        }
+
+        function buildSceneButton(labelText, position, backgroundColor, textColor, role, onClick) {
+            const button = document.createElement('a-entity');
+            button.dataset.role = role;
+            button.setAttribute('position', position);
+
+            const plate = document.createElement('a-plane');
+            plate.classList.add('interactive');
+            plate.dataset.raycastable = 'true';
+            plate.setAttribute('width', '1.55');
+            plate.setAttribute('height', '0.42');
+            plate.setAttribute('color', backgroundColor);
+            plate.setAttribute('material', 'shader: flat; opacity: 0.94');
+            plate.addEventListener('click', onClick);
+
+            const text = document.createElement('a-text');
+            text.dataset.role = `${role}-label`;
+            text.setAttribute('value', labelText);
+            text.setAttribute('align', 'center');
+            text.setAttribute('width', '3');
+            text.setAttribute('position', '0 0 0.02');
+            text.setAttribute('color', textColor);
+
+            button.appendChild(plate);
+            button.appendChild(text);
+            return button;
+        }
+
+        function buildSceneMediaControls(file) {
+            if (!isPlayableMedia(file)) return null;
+
+            const panel = document.createElement('a-entity');
+            panel.dataset.role = 'media-panel';
+
+            const backdrop = document.createElement('a-plane');
+            backdrop.dataset.role = 'media-panel-backdrop';
+            backdrop.setAttribute('width', '3.7');
+            backdrop.setAttribute('height', '0.68');
+            backdrop.setAttribute('color', '#09131f');
+            backdrop.setAttribute('material', 'shader: flat; opacity: 0.74');
+            panel.appendChild(backdrop);
+
+            panel.appendChild(buildSceneButton('Play', '-0.9 0 0.04', '#3de0ff', '#09131f', 'media-play', () => toggleScenePlayback(file)));
+            panel.appendChild(buildSceneButton('Mute', '0.9 0 0.04', '#ffd166', '#09131f', 'media-mute', () => toggleSceneMute(file)));
+            return panel;
+        }
+
+        function buildSceneArtwork(file, index, total) {
+            const type = getMediaType(file);
+            const assetId = createAsset(file);
+            const coverAssetId = type === 'audio' ? createCoverAsset(file) : null;
+            const arc = total > 1 ? index / (total - 1) : 0.5;
+            const angle = -70 + arc * 140;
+            const radians = angle * (Math.PI / 180);
+            const radius = isMobile ? 11 : 14;
+            const x = Math.sin(radians) * radius;
+            const z = -Math.cos(radians) * radius - 2;
+            const wrapper = document.createElement('a-entity');
+            wrapper.dataset.file = file;
+            wrapper.dataset.type = type;
+            wrapper.setAttribute('position', `${x.toFixed(2)} 2 ${z.toFixed(2)}`);
+            wrapper.setAttribute('rotation', `0 ${-angle} 0`);
+
+            const frame = document.createElement('a-box');
+            frame.dataset.role = 'frame';
+            frame.setAttribute('position', '0 0 -0.05');
+            frame.setAttribute('depth', '0.16');
+            frame.setAttribute('color', '#152736');
+            frame.setAttribute('material', 'metalness: 0.18; roughness: 0.5');
+
+            const art = document.createElement(type === 'video' ? 'a-video' : type === 'audio' ? 'a-plane' : 'a-image');
+            art.dataset.role = 'art';
+            art.setAttribute('position', '0 0 0.05');
+            if (type === 'video') {
+                art.classList.add('interactive');
+                art.dataset.raycastable = 'true';
+                art.setAttribute('src', `#${assetId}`);
+                art.setAttribute('material', 'shader: flat');
+                art.addEventListener('click', () => toggleScenePlayback(file));
+            } else if (type === 'audio') {
+                if (coverAssetId) {
+                    art.classList.add('interactive');
+                    art.dataset.raycastable = 'true';
+                    art.setAttribute('src', `#${coverAssetId}`);
+                    art.setAttribute('material', 'shader: flat; transparent: true');
+                    art.addEventListener('click', () => toggleScenePlayback(file));
+                } else {
+                    art.setAttribute('color', '#10283f');
+                    art.setAttribute('material', 'shader: flat; opacity: 0.95');
+                }
+            } else {
+                art.setAttribute('src', `#${assetId}`);
+                art.setAttribute('material', 'shader: flat; transparent: true');
+            }
+
+            const title = document.createElement('a-text');
+            title.dataset.role = 'title';
+            title.setAttribute('value', truncateLabel(getDisplayTitle(file), 24));
+            title.setAttribute('align', 'center');
+            title.setAttribute('width', '6');
+            title.setAttribute('color', '#f4f2ea');
+
+            const subtitle = document.createElement('a-text');
+            subtitle.dataset.role = 'subtitle';
+            subtitle.setAttribute('value', truncateLabel(getDisplayArtist(file) || file, 24));
+            subtitle.setAttribute('align', 'center');
+            subtitle.setAttribute('width', '5.6');
+            subtitle.setAttribute('position', '0 -2.15 0.25');
+            subtitle.setAttribute('color', '#79d7ff');
+
+            const count = document.createElement('a-text');
+            count.dataset.role = 'count';
+            count.setAttribute('value', `${getCount(file)} vote${getCount(file) === 1 ? '' : 's'}`);
+            count.setAttribute('align', 'center');
+            count.setAttribute('width', '5.5');
+            count.setAttribute('position', '0 -2.78 0.25');
+            count.setAttribute('color', '#ffd166');
+
+            const button = document.createElement('a-cylinder');
+            button.dataset.role = 'vote-button';
+            button.classList.add('interactive');
+            button.dataset.raycastable = 'true';
+            button.setAttribute('position', '0 -3.4 0.45');
+            button.setAttribute('radius', '0.5');
+            button.setAttribute('height', '0.16');
+            button.setAttribute('color', myVotes.has(file) ? '#8fd694' : '#ff8f3f');
+            button.setAttribute('material', 'metalness: 0.1; roughness: 0.4');
+            button.addEventListener('click', () => toggleVote(file));
+
+            const buttonLabel = document.createElement('a-text');
+            buttonLabel.dataset.role = 'vote-label';
+            buttonLabel.setAttribute('value', myVotes.has(file) ? 'Remove' : 'Vote');
+            buttonLabel.setAttribute('align', 'center');
+            buttonLabel.setAttribute('width', '3.5');
+            buttonLabel.setAttribute('position', '0 -3.42 0.72');
+            buttonLabel.setAttribute('color', '#09131f');
+
+            wrapper.appendChild(frame);
+            wrapper.appendChild(art);
+
+            if (type === 'audio' && !coverAssetId) {
+                const audioIcon = document.createElement('a-text');
+                audioIcon.setAttribute('value', 'AUDIO');
+                audioIcon.setAttribute('align', 'center');
+                audioIcon.setAttribute('width', '5');
+                audioIcon.setAttribute('position', '0 0.1 0.08');
+                audioIcon.setAttribute('color', '#79d7ff');
+                wrapper.appendChild(audioIcon);
+            }
+
+            wrapper.appendChild(title);
+            wrapper.appendChild(subtitle);
+            wrapper.appendChild(count);
+            wrapper.appendChild(button);
+            wrapper.appendChild(buttonLabel);
+            const mediaControls = buildSceneMediaControls(file);
+            if (mediaControls) {
+                wrapper.appendChild(mediaControls);
+            }
+            sceneMediaWrappers.set(file, wrapper);
+            applySceneMediaLayout(wrapper, type, assetId);
+            attachMediaStateListeners(file, assetId);
+            updateSceneMediaControlState(file);
+            return wrapper;
+        }
+
+        function appendEntity(parent, tagName, attributes = {}) {
+            const entity = document.createElement(tagName);
+            Object.entries(attributes).forEach(([key, value]) => entity.setAttribute(key, value));
+            parent.appendChild(entity);
+            return entity;
+        }
+
+        function buildEnvironment(total) {
+            environment.innerHTML = '';
+
+            const roomRadius = isMobile ? 13 : 16;
+            const galleryDepth = roomRadius + 8;
+
+            appendEntity(environment, 'a-cylinder', {
+                position: `0 0.02 -4`,
+                radius: isMobile ? 8.5 : 10.5,
+                height: '0.08',
+                color: '#09131f',
+                material: 'metalness: 0.2; roughness: 0.42'
+            });
+
+            appendEntity(environment, 'a-ring', {
+                position: '0 0.03 -4',
+                rotation: '-90 0 0',
+                'radius-inner': isMobile ? 7.9 : 9.9,
+                'radius-outer': isMobile ? 8.4 : 10.4,
+                color: '#ff4fd8',
+                material: 'shader: flat; opacity: 0.82'
+            });
+
+            appendEntity(environment, 'a-box', {
+                position: '0 0.01 2',
+                width: '3.8',
+                height: '0.02',
+                depth: '20',
+                color: '#102133',
+                material: 'metalness: 0.1; roughness: 0.25'
+            });
+
+            appendEntity(environment, 'a-box', {
+                position: '0 0.05 2',
+                width: '0.12',
+                height: '0.05',
+                depth: '18',
+                color: '#3de0ff',
+                material: 'shader: flat; opacity: 0.9'
+            });
+
+            appendEntity(environment, 'a-box', {
+                position: '0 6.8 -7',
+                width: '28',
+                height: '0.12',
+                depth: '22',
+                color: '#0b1623',
+                material: 'metalness: 0.2; roughness: 0.65; opacity: 0.96'
+            });
+
+            appendEntity(environment, 'a-box', {
+                position: '0 3.3 -22',
+                width: '34',
+                height: '7',
+                depth: '0.2',
+                color: '#08111b',
+                material: 'metalness: 0.14; roughness: 0.58'
+            });
+
+            appendEntity(environment, 'a-box', {
+                position: '-16 3.2 -7',
+                width: '0.24',
+                height: '7',
+                depth: '30',
+                color: '#08111b',
+                material: 'metalness: 0.14; roughness: 0.58'
+            });
+
+            appendEntity(environment, 'a-box', {
+                position: '16 3.2 -7',
+                width: '0.24',
+                height: '7',
+                depth: '30',
+                color: '#08111b',
+                material: 'metalness: 0.14; roughness: 0.58'
+            });
+
+            [-12, -6, 0, 6, 12].forEach(x => {
+                appendEntity(environment, 'a-box', {
+                    position: `${x} 3.4 -21.86`,
+                    width: '1.7',
+                    height: '5.5',
+                    depth: '0.04',
+                    color: '#18344f',
+                    material: 'shader: flat; opacity: 0.28'
+                });
+
+                appendEntity(environment, 'a-box', {
+                    position: `${x} 3.4 -21.82`,
+                    width: '0.08',
+                    height: '5.6',
+                    depth: '0.06',
+                    color: x === 0 ? '#ffd166' : x % 12 === 0 ? '#ff4fd8' : '#3de0ff',
+                    material: 'shader: flat; opacity: 0.88'
+                });
+            });
+
+            [-15.4, 15.4].forEach(x => {
+                [-15, -7, 1].forEach(z => {
+                    appendEntity(environment, 'a-cylinder', {
+                        position: `${x} 3 ${z}`,
+                        radius: '0.42',
+                        height: '6.2',
+                        color: '#102133',
+                        material: 'metalness: 0.26; roughness: 0.38'
+                    });
+
+                    appendEntity(environment, 'a-cylinder', {
+                        position: `${x} 5.6 ${z}`,
+                        radius: '0.47',
+                        height: '0.08',
+                        color: z === -7 ? '#ff4fd8' : '#3de0ff',
+                        material: 'shader: flat; opacity: 0.94'
+                    });
+                });
+            });
+
+            [-12, -6, 0, 6, 12].forEach(x => {
+                appendEntity(environment, 'a-box', {
+                    position: `${x} 6.45 -7`,
+                    width: '0.12',
+                    height: '0.08',
+                    depth: '22',
+                    color: x === 0 ? '#ffd166' : '#3de0ff',
+                    material: 'shader: flat; opacity: 0.9'
+                });
+            });
+
+            [-11, -5.5, 0, 5.5, 11].forEach((x, index) => {
+                appendEntity(environment, 'a-plane', {
+                    position: `${x} 4.1 -21.7`,
+                    width: '3.8',
+                    height: '3.2',
+                    color: index % 2 === 0 ? '#13283d' : '#1d203a',
+                    material: `shader: flat; opacity: ${index === 2 ? '0.3' : '0.18'}`
+                });
+            });
+
+            const railCount = Math.max(total, 5);
+            for (let index = 0; index < railCount; index += 1) {
+                const progress = railCount > 1 ? index / (railCount - 1) : 0.5;
+                const angle = -70 + progress * 140;
+                const radians = angle * (Math.PI / 180);
+                const x = Math.sin(radians) * roomRadius;
+                const z = -Math.cos(radians) * roomRadius - 2;
+                const rotation = -angle;
+                const bayX = Math.sin(radians) * (roomRadius + 1.15);
+                const bayZ = -Math.cos(radians) * (roomRadius + 1.15) - 2;
+
+                appendEntity(environment, 'a-box', {
+                    position: `${bayX.toFixed(2)} 2 ${(bayZ - 0.18).toFixed(2)}`,
+                    rotation: `0 ${rotation} 0`,
+                    width: '5.4',
+                    height: '4.6',
+                    depth: '0.18',
+                    color: '#0c1724',
+                    material: 'metalness: 0.24; roughness: 0.45'
+                });
+
+                appendEntity(environment, 'a-box', {
+                    position: `${bayX.toFixed(2)} 4.55 ${(bayZ + 0.02).toFixed(2)}`,
+                    rotation: `0 ${rotation} 0`,
+                    width: '5.55',
+                    height: '0.08',
+                    depth: '0.14',
+                    color: index % 2 === 0 ? '#ff4fd8' : '#3de0ff',
+                    material: 'shader: flat; opacity: 0.92'
+                });
+            }
+        }
+
+        function updateSceneVoteState(file) {
+            const wrapper = walls.querySelector(`[data-file="${CSS.escape(file)}"]`);
+            if (!wrapper) return;
+
+            const count = wrapper.querySelector('[data-role="count"]');
+            const button = wrapper.querySelector('[data-role="vote-button"]');
+            const label = wrapper.querySelector('[data-role="vote-label"]');
+            const voted = myVotes.has(file);
+            const pending = pendingVotes.has(file);
+
+            if (count) {
+                const totalVotes = getCount(file);
+                count.setAttribute('value', `${totalVotes} vote${totalVotes === 1 ? '' : 's'}`);
+            }
+
+            if (button) {
+                button.setAttribute('color', pending ? '#79d7ff' : voted ? '#8fd694' : '#ff8f3f');
+            }
+
+            if (label) {
+                label.setAttribute('value', pending ? 'Sending' : voted ? 'Remove' : 'Vote');
+            }
+        }
+
+        function renderScene(files) {
+            walls.innerHTML = '';
+            sceneAssets.innerHTML = '';
+            sceneMediaWrappers.clear();
+            buildEnvironment(files.length);
+            files.forEach((file, index) => {
+                walls.appendChild(buildSceneArtwork(file, index, files.length));
+            });
+        }
+
+        function buildCard(file) {
+            const type = getMediaType(file);
+            const metadata = getMetadata(file);
+            const assetId = type === 'audio' ? createAsset(file) : null;
+            const article = document.createElement('article');
+            article.className = 'media-card';
+            article.dataset.file = file;
+
+            const preview = document.createElement('div');
+            preview.className = 'preview';
+
+            if (type === 'image') {
+                const image = document.createElement('img');
+                image.src = `media/${file}`;
+                image.alt = getLabel(file);
+                preview.appendChild(image);
+            } else if (type === 'video') {
+                const video = document.createElement('video');
+                video.src = `media/${file}`;
+                video.muted = true;
+                video.loop = true;
+                video.autoplay = true;
+                video.playsInline = true;
+                preview.appendChild(video);
+            } else {
+                preview.classList.add('audio-player');
+                if (metadata.artwork) {
+                    const image = document.createElement('img');
+                    image.src = metadata.artwork;
+                    image.alt = getDisplayTitle(file);
+                    preview.appendChild(image);
+                } else {
+                    const fallback = document.createElement('div');
+                    fallback.className = 'audio-preview-copy';
+                    fallback.innerHTML = `<div><span>♪</span>${truncateLabel(getDisplayTitle(file), 20)}</div>`;
+                    preview.appendChild(fallback);
+                }
+
+                const playerControls = document.createElement('div');
+                playerControls.className = 'player-controls';
+
+                const playButton = document.createElement('button');
+                playButton.type = 'button';
+                playButton.dataset.role = 'player-play';
+                playButton.textContent = 'Play';
+                playButton.addEventListener('click', () => toggleCardPlayback(file));
+
+                const muteButton = document.createElement('button');
+                muteButton.type = 'button';
+                muteButton.dataset.role = 'player-mute';
+                muteButton.textContent = 'Mute';
+                muteButton.addEventListener('click', () => toggleCardMute(file));
+
+                playerControls.appendChild(playButton);
+                playerControls.appendChild(muteButton);
+                preview.appendChild(playerControls);
+
+                attachMediaStateListeners(file, assetId);
+            }
+
+            const meta = document.createElement('div');
+            meta.className = 'card-meta';
+            meta.innerHTML = `<div><div class="card-title">${truncateLabel(getDisplayTitle(file))}</div><div class="vote-count">${truncateLabel(getDisplayArtist(file) || file, 28)}</div></div><div class="badge">${type}</div>`;
+
+            const actions = document.createElement('div');
+            actions.className = 'card-actions';
+
+            const voteCount = document.createElement('span');
+            voteCount.className = 'vote-count';
+            voteCount.dataset.role = 'count';
+
+            const button = document.createElement('button');
+            button.className = 'vote-button';
+            button.dataset.role = 'vote-button';
+            button.type = 'button';
+            button.addEventListener('click', () => toggleVote(file));
+
+            actions.appendChild(voteCount);
+            actions.appendChild(button);
+
+            article.appendChild(preview);
+            article.appendChild(meta);
+            article.appendChild(actions);
+            updateCardMediaControlState(file);
+            return article;
+        }
+
+        function updateCardState(file) {
+            const card = galleryRail.querySelector(`[data-file="${CSS.escape(file)}"]`);
+            if (!card) return;
+
+            const button = card.querySelector('[data-role="vote-button"]');
+            const count = card.querySelector('[data-role="count"]');
+            const pending = pendingVotes.has(file);
+            const voted = myVotes.has(file);
+            const totalVotes = getCount(file);
+
+            card.dataset.voted = String(voted);
+            count.textContent = `${totalVotes} vote${totalVotes === 1 ? '' : 's'}`;
+            button.disabled = pending;
+            button.textContent = pending ? 'Sending…' : voted ? 'Remove vote' : 'Vote now';
+        }
+
+        function renderCards(files) {
+            galleryRail.innerHTML = '';
+            if (!files.length) {
+                galleryRail.innerHTML = '<div class="empty-state">Drop files into public/media to populate the gallery.</div>';
+                return;
+            }
+
+            files.forEach(file => {
+                const card = buildCard(file);
+                galleryRail.appendChild(card);
+                updateCardState(file);
+            });
+        }
+
+        function updateLeaderboard() {
+            const ranked = mediaFiles
+                .map(file => [file, getCount(file)])
+                .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+                .slice(0, 5)
+                .filter(([, count]) => count > 0);
+
+            leaderboard.innerHTML = ranked.length
+                ? ranked.map(([file, count], index) => `
+                    <li>
+                        <span class="rank">${index + 1}</span>
+                        <span class="name">${truncateLabel(file, 26)}</span>
+                        <span class="count">${count}</span>
+                    </li>
+                `).join('')
+                : '<li><span class="name">No votes yet</span></li>';
+        }
+
+        function syncVoteState(file) {
+            updateCardState(file);
+            updateSceneVoteState(file);
+            updateLeaderboard();
+        }
+
+        function toggleVote(file) {
+            if (myVotes.has(file)) {
+                removeVote(file);
+                return;
+            }
+
+            vote(file);
+        }
+
+        function vote(file) {
+            if (pendingVotes.has(file)) {
+                return;
+            }
+
+            pendingVotes.add(file);
+            syncVoteState(file);
+            setStatus(`Sending your vote for ${truncateLabel(file, 20)}…`);
+
+            socket.emit('cast-vote', file, response => {
+                pendingVotes.delete(file);
+
+                if (!response || !response.ok) {
+                    if (response?.reason === 'duplicate-vote') {
+                        myVotes.add(file);
+                        votes[file] = Number(response.count || votes[file] || 0);
+                        setStatus(`That vote is already locked for ${truncateLabel(file, 20)}.`, 'error');
+                    } else {
+                        setStatus('Vote could not be saved. Try refreshing the page.', 'error');
+                    }
+                    syncVoteState(file);
+                    return;
+                }
+
+                myVotes.add(file);
+                votes[file] = Number(response.count || 0);
+                syncVoteState(file);
+                setStatus(`Vote counted for ${truncateLabel(file, 20)}.`, 'success');
+            });
+        }
+
+        function removeVote(file) {
+            if (pendingVotes.has(file)) {
+                return;
+            }
+
+            pendingVotes.add(file);
+            syncVoteState(file);
+            setStatus(`Removing your vote from ${truncateLabel(file, 20)}…`);
+
+            socket.emit('remove-vote', file, response => {
+                pendingVotes.delete(file);
+
+                if (!response || !response.ok) {
+                    if (response?.reason === 'vote-not-found') {
+                        myVotes.delete(file);
+                        votes[file] = Number(response.count || votes[file] || 0);
+                        setStatus(`No saved vote was found for ${truncateLabel(file, 20)}.`, 'error');
+                    } else {
+                        setStatus('Vote could not be removed. Try refreshing the page.', 'error');
+                    }
+                    syncVoteState(file);
+                    return;
+                }
+
+                myVotes.delete(file);
+                votes[file] = Number(response.count || 0);
+                syncVoteState(file);
+                setStatus(`Vote removed from ${truncateLabel(file, 20)}.`, 'success');
+            });
+        }
+
+        socket.on('vote-announcement', payload => {
+            votes[payload.item] = Number(payload.count || 0);
+            syncVoteState(payload.item);
+        });
+
+        async function init() {
+            configureControls();
+            setOverlayCollapsed(localStorage.getItem(overlayStateKey) === '1');
+            updateAudioUnlockUI();
+            audioUnlockButton?.addEventListener('click', () => {
+                const context = unlockAudio();
+                if (context) {
+                    setStatus('Audio enabled. Walk toward an audio poster to hear it nearby.', 'success');
+                } else {
+                    setStatus('Audio unlock needs a direct click or tap. Try the button again.', 'error');
+                }
+            });
+            try {
+                const [mediaRes, mediaMetadataRes, voteRes, myVotesRes] = await Promise.all([
+                    fetch('/api/media'),
+                    fetch('/api/media-metadata'),
+                    fetch('/api/votes'),
+                    fetch('/api/my-votes')
+                ]);
+                mediaFiles = await mediaRes.json();
+                Object.assign(mediaMetadata, await mediaMetadataRes.json());
+                Object.assign(votes, await voteRes.json());
+                (await myVotesRes.json()).forEach(item => myVotes.add(item));
+
+                renderScene(mediaFiles);
+                renderCards(mediaFiles);
+                mediaFiles.forEach(syncVoteState);
+
+                if (mediaFiles.length) {
+                    setStatus('Gallery ready. Walk straight toward an audio poster to hear it nearby.');
+                } else {
+                    setStatus('No media found yet. Add files to public/media to build the room.', 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                setStatus('Gallery failed to load. Check the server connection.', 'error');
+            }
+
+            requestAnimationFrame(updateSpatialAudioSceneState);
+        }
+
+        init();
+    </script>
+</body>
+</html>
