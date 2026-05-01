@@ -243,6 +243,11 @@
             padding: 18px 18px 16px;
         }
 
+        body.overlay-collapsed .hero,
+        body.overlay-collapsed .leaderboard {
+            display: none;
+        }
+
         .leaderboard h2,
         .tray-header h2 {
             margin: 0;
@@ -777,7 +782,7 @@
                 <div class="hero-grid">
                     <div class="chip">
                         <strong>Vote rules</strong>
-                        <span>Each visitor gets exactly one vote per artwork or clip.</span>
+                        <span id="vote-rules-copy">Each visitor gets exactly one vote per artwork or clip.</span>
                     </div>
                     <div class="chip">
                         <strong id="control-label">Desktop mode</strong>
@@ -852,6 +857,7 @@
         let audioUnlocked = false;
         const otherPlayers = new Map();
         let lastPlayerUpdate = 0;
+        let maxVotes = 3;
 
         const PROXIMITY_AUDIO_TRIGGER_DISTANCE = 5.75;
         const PROXIMITY_AUDIO_MAX_DISTANCE = 11.5;
@@ -879,6 +885,7 @@
         const hudToggleLabel = document.getElementById('hud-toggle-label');
         const controlLabel = document.getElementById('control-label');
         const controlCopy = document.getElementById('control-copy');
+        const voteRulesCopy = document.getElementById('vote-rules-copy');
         const audioUnlockButton = document.getElementById('audio-unlock');
         const mainCamera = document.getElementById('main-camera');
         const navButtons = Array.from(document.querySelectorAll('[data-move]'));
@@ -1933,7 +1940,8 @@
             }
 
             if (button) {
-                button.setAttribute('color', pending ? '#79d7ff' : voted ? '#8fd694' : '#ff8f3f');
+                const disabled = pending || (!voted && myVotes.size >= maxVotes);
+                button.setAttribute('color', pending ? '#79d7ff' : disabled ? '#4a5c68' : voted ? '#8fd694' : '#ff8f3f');
             }
 
             if (label) {
@@ -2050,7 +2058,7 @@
 
             card.dataset.voted = String(voted);
             count.textContent = `${totalVotes} vote${totalVotes === 1 ? '' : 's'}`;
-            button.disabled = pending;
+            button.disabled = pending || (!voted && myVotes.size >= maxVotes);
             button.textContent = pending ? 'Sending…' : voted ? 'Remove vote' : 'Vote now';
         }
 
@@ -2087,14 +2095,21 @@
         }
 
         function syncVoteState(file) {
-            updateCardState(file);
-            updateSceneVoteState(file);
+            mediaFiles.forEach(f => {
+                updateCardState(f);
+                updateSceneVoteState(f);
+            });
             updateLeaderboard();
         }
 
         function toggleVote(file) {
             if (myVotes.has(file)) {
                 removeVote(file);
+                return;
+            }
+
+            if (myVotes.size >= maxVotes) {
+                setStatus(`You have reached the maximum of ${maxVotes} votes.`, 'error');
                 return;
             }
 
@@ -2118,6 +2133,8 @@
                         myVotes.add(file);
                         votes[file] = Number(response.count || votes[file] || 0);
                         setStatus(`That vote is already locked for ${truncateLabel(file, 20)}.`, 'error');
+                    } else if (response?.reason === 'vote-limit-reached') {
+                        setStatus(`You have reached the maximum of ${maxVotes} votes.`, 'error');
                     } else {
                         setStatus('Vote could not be saved. Try refreshing the page.', 'error');
                     }
@@ -2239,12 +2256,20 @@
                 }
             });
             try {
-                const [mediaRes, mediaMetadataRes, voteRes, myVotesRes] = await Promise.all([
+                const [configRes, mediaRes, mediaMetadataRes, voteRes, myVotesRes] = await Promise.all([
+                    fetch('/api/config').catch(() => ({ json: async () => ({ maxVotes: 3 }) })),
                     fetch('/api/media'),
                     fetch('/api/media-metadata'),
                     fetch('/api/votes'),
                     fetch('/api/my-votes')
                 ]);
+                const config = await configRes.json();
+                maxVotes = config.maxVotes || 3;
+                
+                if (voteRulesCopy) {
+                    voteRulesCopy.textContent = `Each visitor gets a total of ${maxVotes} vote${maxVotes === 1 ? '' : 's'}.`;
+                }
+
                 mediaFiles = await mediaRes.json();
                 Object.assign(mediaMetadata, await mediaMetadataRes.json());
                 Object.assign(votes, await voteRes.json());

@@ -14,6 +14,7 @@ const redis = new Redis({ host: 'redis' });
 let musicMetadataModulePromise;
 const MEDIA_DIR = path.join(__dirname, 'public', 'media');
 const VOTER_COOKIE = 'kai_gallery_voter';
+const MAX_VOTES_PER_USER = parseInt(process.env.MAX_VOTES_PER_USER, 10) || 3;
 const SUPPORTED_EXTENSIONS = new Set([
   '.jpg',
   '.jpeg',
@@ -169,6 +170,10 @@ app.get('/api/my-votes', async (req, res) => {
   res.json(items);
 });
 
+app.get('/api/config', (req, res) => {
+  res.json({ maxVotes: MAX_VOTES_PER_USER });
+});
+
 io.on('connection', (socket) => {
   const cookies = parseCookies(socket.handshake.headers.cookie);
   socket.data.voterId = cookies[VOTER_COOKIE] || createVoterId();
@@ -194,6 +199,13 @@ io.on('connection', (socket) => {
     }
 
     const voterId = socket.data.voterId;
+    
+    const myVotesCount = await redis.scard(getUserVotesKey(voterId));
+    if (myVotesCount >= MAX_VOTES_PER_USER) {
+      acknowledge({ ok: false, reason: 'vote-limit-reached', maxVotes: MAX_VOTES_PER_USER });
+      return;
+    }
+
     const isNewVote = await redis.sadd(getVoteVotersKey(normalizedItem), voterId);
     if (!isNewVote) {
       const count = Number(await redis.get(getVoteCountKey(normalizedItem)) || 0);
