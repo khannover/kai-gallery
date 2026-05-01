@@ -109,6 +109,29 @@
             border-color: rgba(255, 143, 63, 0.28);
         }
 
+        .pointer-hint {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(9, 19, 31, 0.85);
+            color: var(--text-main);
+            padding: 10px 18px;
+            border-radius: 999px;
+            border: 1px solid rgba(121, 215, 255, 0.2);
+            font-size: 14px;
+            z-index: 1000;
+            pointer-events: none;
+            backdrop-filter: blur(8px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .pointer-hint.hidden {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-10px);
+        }
+
         .audio-unlock {
             margin-top: 16px;
             display: inline-flex;
@@ -239,6 +262,23 @@
             padding: 0;
             display: grid;
             gap: 10px;
+            max-height: 250px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .leaderboard ol::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .leaderboard ol::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 4px;
+        }
+
+        .leaderboard ol::-webkit-scrollbar-thumb {
+            background: rgba(121, 215, 255, 0.2);
+            border-radius: 4px;
         }
 
         .leaderboard li {
@@ -719,6 +759,10 @@
     </style>
 </head>
 <body>
+    <div class="pointer-hint hidden" id="pointer-lock-hint">
+        Press <strong>ESC</strong> to free your mouse
+    </div>
+
     <div class="hud" id="gallery-overlay">
         <div class="hud-column">
             <button class="hud-toggle" id="hud-toggle" type="button" aria-expanded="true" aria-controls="gallery-overlay">
@@ -780,17 +824,13 @@
         </div>
     </section>
 
-    <a-scene embedded fog="type: exponential; color: #070d16; density: 0.018">
+    <a-scene embedded fog="type: exponential; color: #070d16; density: 0.025">
         <a-assets id="scene-assets"></a-assets>
         <a-sky color="#060b14"></a-sky>
-        <a-entity light="type: ambient; intensity: 0.34; color: #79d7ff"></a-entity>
-        <a-entity light="type: point; intensity: 0.92; color: #ffd166" position="0 7 1"></a-entity>
-        <a-entity light="type: point; intensity: 0.76; color: #ff4fd8" position="9 4 -10"></a-entity>
-        <a-entity light="type: point; intensity: 0.72; color: #3de0ff" position="-9 4 -10"></a-entity>
-        <a-entity light="type: spot; intensity: 0.95; angle: 34; penumbra: 0.4; color: #9ce8ff" position="0 8 10" rotation="-35 0 0"></a-entity>
-        <a-plane rotation="-90 0 0" width="84" height="84" color="#071019" material="metalness: 0.18; roughness: 0.8"></a-plane>
-        <a-entity id="camera-rig" position="0 0 2">
-            <a-camera id="main-camera" wasd-controls="acceleration: 30" look-controls="mouseEnabled: true">
+        <a-entity light="type: ambient; intensity: 0.45; color: #79d7ff"></a-entity>
+        <!-- Dynamic point lights will be added in buildEnvironment -->
+        <a-entity id="camera-rig" position="0 0 4">
+            <a-camera id="main-camera" wasd-controls="acceleration: 45" look-controls="mouseEnabled: true">
                 <a-cursor color="#ffd166" raycaster="objects: .interactive, [data-raycastable]"></a-cursor>
             </a-camera>
         </a-entity>
@@ -902,8 +942,8 @@
         }
 
         function moveCamera(direction) {
-            const rigPosition = cameraRig.getAttribute('position') || { x: 0, y: 0, z: 2 };
-            const step = isMobile ? 0.8 : 1.1;
+            const rigPosition = cameraRig.getAttribute('position') || { x: 0, y: 0, z: 4 };
+            const step = isMobile ? 0.8 : 1.5;
             const nextPosition = { ...rigPosition };
 
             if (direction === 'forward') nextPosition.z -= step;
@@ -911,8 +951,12 @@
             if (direction === 'left') nextPosition.x -= step;
             if (direction === 'right') nextPosition.x += step;
 
-            nextPosition.x = Math.max(-12, Math.min(12, nextPosition.x));
-            nextPosition.z = Math.max(-18, Math.min(8, nextPosition.z));
+            const totalPairs = Math.ceil(mediaFiles.length / 2);
+            const minZ = -(totalPairs * 8) - 10;
+            const maxZ = 6;
+            
+            nextPosition.x = Math.max(-6, Math.min(6, nextPosition.x));
+            nextPosition.z = Math.max(minZ, Math.min(maxZ, nextPosition.z));
             cameraRig.setAttribute('position', `${nextPosition.x} ${nextPosition.y} ${nextPosition.z}`);
         }
 
@@ -926,7 +970,7 @@
                 controlLabel.textContent = 'Desktop mode';
                 controlCopy.textContent = 'Use mouse plus WASD to roam. Audio starts only when you walk straight up to a poster; video still starts from the cover or Play button.';
                 mainCamera.setAttribute('wasd-controls', 'acceleration: 30');
-                mainCamera.setAttribute('look-controls', 'mouseEnabled: true');
+                mainCamera.setAttribute('look-controls', 'pointerLockEnabled: true; mouseEnabled: true');
             }
         }
 
@@ -1206,24 +1250,32 @@
                 art.setAttribute('height', String(mediaSize.height));
             }
 
+            const hasSubtitle = subtitle && subtitle.getAttribute('value');
+            const subtitleOffset = hasSubtitle ? 0.34 : 0;
+            const countOffset = hasSubtitle ? 0.74 : 0.4;
+            const buttonOffset = hasSubtitle ? 1.32 : 0.98;
+
             if (title) {
                 title.setAttribute('position', `0 ${lowerEdge} 0.25`);
             }
 
-            if (subtitle) {
-                subtitle.setAttribute('position', `0 ${lowerEdge - 0.34} 0.25`);
+            if (subtitle && hasSubtitle) {
+                subtitle.setAttribute('position', `0 ${lowerEdge - subtitleOffset} 0.25`);
+            } else if (subtitle) {
+                // If it exists but has no text, hide it to be safe
+                subtitle.setAttribute('visible', 'false');
             }
 
             if (count) {
-                count.setAttribute('position', `0 ${lowerEdge - 0.74} 0.25`);
+                count.setAttribute('position', `0 ${lowerEdge - countOffset} 0.25`);
             }
 
             if (button) {
-                button.setAttribute('position', `0 ${lowerEdge - 1.32} 0.45`);
+                button.setAttribute('position', `0 ${lowerEdge - buttonOffset} 0.45`);
             }
 
             if (label) {
-                label.setAttribute('position', `0 ${lowerEdge - 1.34} 0.72`);
+                label.setAttribute('position', `0 ${lowerEdge - buttonOffset - 0.02} 0.72`);
             }
 
             if (mediaPanel) {
@@ -1540,35 +1592,26 @@
             return panel;
         }
 
-        function getArcLayout(index, total) {
-            const MAX_PER_ROW = isMobile ? 10 : 14;
-            const ROW_SPACING = isMobile ? 5.5 : 6;
-            const baseRadius = isMobile ? 11 : 14;
-            const rows = Math.ceil(total / MAX_PER_ROW);
-            const row = Math.floor(index / MAX_PER_ROW);
-            const indexInRow = index - row * MAX_PER_ROW;
-            const countInRow = Math.min(MAX_PER_ROW, total - row * MAX_PER_ROW);
-            const arc = countInRow > 1 ? indexInRow / (countInRow - 1) : 0.5;
-            const spreadDeg = Math.min(140, countInRow * 12);
-            const angle = -(spreadDeg / 2) + arc * spreadDeg;
-            const radians = angle * (Math.PI / 180);
-            const radius = baseRadius + row * ROW_SPACING;
-            const y = 2 + row * 4.5;
-            return {
-                x: Math.sin(radians) * radius,
-                y,
-                z: -Math.cos(radians) * radius - 2,
-                angle,
-                row,
-                rows
-            };
+        function getCorridorLayout(index, total) {
+            const isLeft = index % 2 === 0;
+            const pairIndex = Math.floor(index / 2);
+            
+            const spacingZ = 8;
+            const startZ = 1;
+
+            const z = startZ - (pairIndex * spacingZ);
+            const x = isLeft ? -7.8 : 7.8;
+            const y = 3.6;
+            const angle = isLeft ? -90 : 90; 
+
+            return { x, y, z, angle };
         }
 
         function buildSceneArtwork(file, index, total) {
             const type = getMediaType(file);
             const assetId = createAsset(file);
             const coverAssetId = type === 'audio' ? createCoverAsset(file) : null;
-            const layout = getArcLayout(index, total);
+            const layout = getCorridorLayout(index, total);
             const wrapper = document.createElement('a-entity');
             wrapper.dataset.file = file;
             wrapper.dataset.type = type;
@@ -1616,10 +1659,12 @@
 
             const subtitle = document.createElement('a-text');
             subtitle.dataset.role = 'subtitle';
-            subtitle.setAttribute('value', truncateLabel(getDisplayArtist(file) || file, 24));
+            const artistName = getDisplayArtist(file);
+            if (artistName) {
+                subtitle.setAttribute('value', truncateLabel(artistName, 24));
+            }
             subtitle.setAttribute('align', 'center');
             subtitle.setAttribute('width', '5.6');
-            subtitle.setAttribute('position', '0 -2.15 0.25');
             subtitle.setAttribute('color', '#79d7ff');
 
             const count = document.createElement('a-text');
@@ -1687,177 +1732,159 @@
 
         function buildEnvironment(total) {
             environment.innerHTML = '';
+            
+            const spacingZ = 8;
+            const totalPairs = Math.ceil(total / 2);
+            const corridorLength = Math.max(40, totalPairs * spacingZ + 20);
+            const centerZ = -corridorLength / 2 + 5;
 
-            const roomRadius = isMobile ? 13 : 16;
-            const galleryDepth = roomRadius + 8;
-
-            appendEntity(environment, 'a-cylinder', {
-                position: `0 0.02 -4`,
-                radius: isMobile ? 8.5 : 10.5,
-                height: '0.08',
-                color: '#09131f',
-                material: 'metalness: 0.2; roughness: 0.42'
-            });
-
-            appendEntity(environment, 'a-ring', {
-                position: '0 0.03 -4',
-                rotation: '-90 0 0',
-                'radius-inner': isMobile ? 7.9 : 9.9,
-                'radius-outer': isMobile ? 8.4 : 10.4,
-                color: '#ff4fd8',
-                material: 'shader: flat; opacity: 0.82'
-            });
-
+            // Floor
             appendEntity(environment, 'a-box', {
-                position: '0 0.01 2',
-                width: '3.8',
-                height: '0.02',
-                depth: '20',
-                color: '#102133',
-                material: 'metalness: 0.1; roughness: 0.25'
+                position: `0 0 ${centerZ}`,
+                width: '16',
+                height: '0.1',
+                depth: corridorLength,
+                color: '#050a10',
+                material: 'metalness: 0.8; roughness: 0.2'
             });
 
+            // Floor center neon line
             appendEntity(environment, 'a-box', {
-                position: '0 0.05 2',
-                width: '0.12',
+                position: `0 0.06 ${centerZ}`,
+                width: '0.15',
                 height: '0.05',
-                depth: '18',
+                depth: corridorLength,
                 color: '#3de0ff',
+                material: 'shader: flat; opacity: 0.8'
+            });
+
+            // Left wall
+            appendEntity(environment, 'a-box', {
+                position: `-8.5 4 ${centerZ}`,
+                width: '1',
+                height: '8',
+                depth: corridorLength,
+                color: '#08111b',
+                material: 'metalness: 0.4; roughness: 0.6'
+            });
+
+            // Right wall
+            appendEntity(environment, 'a-box', {
+                position: `8.5 4 ${centerZ}`,
+                width: '1',
+                height: '8',
+                depth: corridorLength,
+                color: '#08111b',
+                material: 'metalness: 0.4; roughness: 0.6'
+            });
+
+            // Ceiling
+            appendEntity(environment, 'a-box', {
+                position: `0 8 ${centerZ}`,
+                width: '18',
+                height: '0.1',
+                depth: corridorLength,
+                color: '#04080e',
+                material: 'metalness: 0.2; roughness: 0.8'
+            });
+
+            // Ceiling neon accents (left and right)
+            appendEntity(environment, 'a-box', {
+                position: `-7 7.9 ${centerZ}`,
+                width: '0.2',
+                height: '0.1',
+                depth: corridorLength,
+                color: '#ff4fd8',
+                material: 'shader: flat; opacity: 0.9'
+            });
+            
+            appendEntity(environment, 'a-box', {
+                position: `7 7.9 ${centerZ}`,
+                width: '0.2',
+                height: '0.1',
+                depth: corridorLength,
+                color: '#ffd166',
                 material: 'shader: flat; opacity: 0.9'
             });
 
+            // Back wall
             appendEntity(environment, 'a-box', {
-                position: '0 6.8 -7',
-                width: '28',
-                height: '0.12',
-                depth: '22',
-                color: '#0b1623',
-                material: 'metalness: 0.2; roughness: 0.65; opacity: 0.96'
+                position: `0 4 ${5 - corridorLength}`,
+                width: '18',
+                height: '8',
+                depth: '1',
+                color: '#050a10',
+                material: 'metalness: 0.5; roughness: 0.5'
             });
 
-            appendEntity(environment, 'a-box', {
-                position: '0 3.3 -22',
-                width: '34',
-                height: '7',
-                depth: '0.2',
-                color: '#08111b',
-                material: 'metalness: 0.14; roughness: 0.58'
+            // Back wall neon logo/accent
+            appendEntity(environment, 'a-plane', {
+                position: `0 4 ${5.05 - corridorLength}`,
+                width: '4',
+                height: '4',
+                color: '#3de0ff',
+                material: 'shader: flat; opacity: 0.15; transparent: true'
             });
 
+            // Front wall (behind camera)
             appendEntity(environment, 'a-box', {
-                position: '-16 3.2 -7',
-                width: '0.24',
-                height: '7',
-                depth: '30',
-                color: '#08111b',
-                material: 'metalness: 0.14; roughness: 0.58'
+                position: `0 4 7.5`,
+                width: '18',
+                height: '8',
+                depth: '1',
+                color: '#050a10',
+                material: 'metalness: 0.5; roughness: 0.5'
             });
 
-            appendEntity(environment, 'a-box', {
-                position: '16 3.2 -7',
-                width: '0.24',
-                height: '7',
-                depth: '30',
-                color: '#08111b',
-                material: 'metalness: 0.14; roughness: 0.58'
-            });
-
-            [-12, -6, 0, 6, 12].forEach(x => {
+            // Add pillars and lights along the walls
+            for (let i = 0; i <= totalPairs + 1; i++) {
+                const z = 5 - (i * spacingZ);
+                
+                // Left pillar
                 appendEntity(environment, 'a-box', {
-                    position: `${x} 3.4 -21.86`,
-                    width: '1.7',
-                    height: '5.5',
-                    depth: '0.04',
-                    color: '#18344f',
-                    material: 'shader: flat; opacity: 0.28'
+                    position: `-8.1 4 ${z}`,
+                    width: '0.3',
+                    height: '8',
+                    depth: '0.8',
+                    color: '#112233',
+                    material: 'metalness: 0.6; roughness: 0.3'
                 });
-
                 appendEntity(environment, 'a-box', {
-                    position: `${x} 3.4 -21.82`,
-                    width: '0.08',
-                    height: '5.6',
-                    depth: '0.06',
-                    color: x === 0 ? '#ffd166' : x % 12 === 0 ? '#ff4fd8' : '#3de0ff',
-                    material: 'shader: flat; opacity: 0.88'
+                    position: `-7.9 4 ${z}`,
+                    width: '0.1',
+                    height: '8',
+                    depth: '0.1',
+                    color: '#ff4fd8',
+                    material: 'shader: flat; opacity: 0.8'
                 });
-            });
 
-            [-15.4, 15.4].forEach(x => {
-                [-15, -7, 1].forEach(z => {
-                    appendEntity(environment, 'a-cylinder', {
-                        position: `${x} 3 ${z}`,
-                        radius: '0.42',
-                        height: '6.2',
-                        color: '#102133',
-                        material: 'metalness: 0.26; roughness: 0.38'
-                    });
-
-                    appendEntity(environment, 'a-cylinder', {
-                        position: `${x} 5.6 ${z}`,
-                        radius: '0.47',
-                        height: '0.08',
-                        color: z === -7 ? '#ff4fd8' : '#3de0ff',
-                        material: 'shader: flat; opacity: 0.94'
-                    });
-                });
-            });
-
-            [-12, -6, 0, 6, 12].forEach(x => {
+                // Right pillar
                 appendEntity(environment, 'a-box', {
-                    position: `${x} 6.45 -7`,
-                    width: '0.12',
-                    height: '0.08',
-                    depth: '22',
-                    color: x === 0 ? '#ffd166' : '#3de0ff',
-                    material: 'shader: flat; opacity: 0.9'
+                    position: `8.1 4 ${z}`,
+                    width: '0.3',
+                    height: '8',
+                    depth: '0.8',
+                    color: '#112233',
+                    material: 'metalness: 0.6; roughness: 0.3'
                 });
-            });
-
-            [-11, -5.5, 0, 5.5, 11].forEach((x, index) => {
-                appendEntity(environment, 'a-plane', {
-                    position: `${x} 4.1 -21.7`,
-                    width: '3.8',
-                    height: '3.2',
-                    color: index % 2 === 0 ? '#13283d' : '#1d203a',
-                    material: `shader: flat; opacity: ${index === 2 ? '0.3' : '0.18'}`
+                appendEntity(environment, 'a-box', {
+                    position: `7.9 4 ${z}`,
+                    width: '0.1',
+                    height: '8',
+                    depth: '0.1',
+                    color: '#ffd166',
+                    material: 'shader: flat; opacity: 0.8'
                 });
-            });
 
-            const railCount = Math.max(total, 5);
-            const MAX_PER_ROW = isMobile ? 10 : 14;
-            const ROW_SPACING = isMobile ? 5.5 : 6;
-            const totalRows = Math.ceil(railCount / MAX_PER_ROW);
-            for (let row = 0; row < totalRows; row += 1) {
-                const countInRow = Math.min(MAX_PER_ROW, railCount - row * MAX_PER_ROW);
-                const rowRadius = roomRadius + row * ROW_SPACING;
-                const rowY = 2 + row * 4.5;
-                const spreadDeg = Math.min(140, countInRow * 12);
-                for (let i = 0; i < countInRow; i += 1) {
-                    const progress = countInRow > 1 ? i / (countInRow - 1) : 0.5;
-                    const angle = -(spreadDeg / 2) + progress * spreadDeg;
-                    const radians = angle * (Math.PI / 180);
-                    const rotation = -angle;
-                    const bayX = Math.sin(radians) * (rowRadius + 1.15);
-                    const bayZ = -Math.cos(radians) * (rowRadius + 1.15) - 2;
-
-                    appendEntity(environment, 'a-box', {
-                        position: `${bayX.toFixed(2)} ${rowY.toFixed(2)} ${(bayZ - 0.18).toFixed(2)}`,
-                        rotation: `0 ${rotation} 0`,
-                        width: '5.4',
-                        height: '4.6',
-                        depth: '0.18',
-                        color: '#0c1724',
-                        material: 'metalness: 0.24; roughness: 0.45'
+                // Add point lights periodically to light up the long corridor
+                if (i % 2 === 0) {
+                    appendEntity(environment, 'a-entity', {
+                        light: `type: point; intensity: 0.65; distance: 22; color: #ff4fd8; decay: 1.5`,
+                        position: `-6 5 ${z}`
                     });
-
-                    appendEntity(environment, 'a-box', {
-                        position: `${bayX.toFixed(2)} ${(rowY + 2.55).toFixed(2)} ${(bayZ + 0.02).toFixed(2)}`,
-                        rotation: `0 ${rotation} 0`,
-                        width: '5.55',
-                        height: '0.08',
-                        depth: '0.14',
-                        color: i % 2 === 0 ? '#ff4fd8' : '#3de0ff',
-                        material: 'shader: flat; opacity: 0.92'
+                    appendEntity(environment, 'a-entity', {
+                        light: `type: point; intensity: 0.65; distance: 22; color: #ffd166; decay: 1.5`,
+                        position: `6 5 ${z}`
                     });
                 }
             }
@@ -2117,6 +2144,17 @@
         async function init() {
             configureControls();
             setOverlayCollapsed(localStorage.getItem(overlayStateKey) === '1');
+            
+            document.addEventListener('pointerlockchange', () => {
+                const hint = document.getElementById('pointer-lock-hint');
+                if (hint) {
+                    if (document.pointerLockElement) {
+                        hint.classList.remove('hidden');
+                    } else {
+                        hint.classList.add('hidden');
+                    }
+                }
+            });
             updateAudioUnlockUI();
             audioUnlockButton?.addEventListener('click', () => {
                 const context = unlockAudio();
