@@ -31,4 +31,4 @@ volumes:
 networks:
   shared_net:
     name: bancamp-net
-    external: trueroot@ubuntu-4gb-nbg1-1:/var/docker/kai-gallery# ls
+    external: true
