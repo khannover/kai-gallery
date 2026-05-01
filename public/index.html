@@ -345,7 +345,7 @@
         .gallery-rail {
             display: grid;
             grid-auto-flow: row;
-            grid-auto-rows: minmax(224px, auto);
+            grid-auto-rows: min-content;
             gap: 14px;
             overflow-y: auto;
             overflow-x: hidden;
@@ -367,8 +367,8 @@
         .media-card {
             scroll-snap-align: start;
             display: grid;
-            gap: 12px;
-            padding: 14px;
+            gap: 10px;
+            padding: 12px;
             border-radius: 20px;
             border: 1px solid rgba(255, 255, 255, 0.06);
             background:
@@ -376,7 +376,7 @@
                 rgba(255, 255, 255, 0.03);
             transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
             align-content: start;
-            max-height: 400px;
+            overflow: hidden;
         }
 
         .media-card:hover {
@@ -393,21 +393,26 @@
 
         .preview {
             width: 100%;
-            aspect-ratio: 16 / 10;
-            border-radius: 16px;
+            height: 160px;
+            border-radius: 14px;
             overflow: hidden;
             background: linear-gradient(135deg, rgba(255, 143, 63, 0.22), rgba(121, 215, 255, 0.12));
             border: 1px solid rgba(255, 255, 255, 0.06);
-            display: grid;
-            place-items: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .preview img,
-        .preview video,
-        .preview audio {
+        .preview video {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
+            display: block;
+        }
+
+        .preview audio {
+            width: 100%;
             display: block;
         }
 
@@ -419,7 +424,7 @@
         }
 
         .preview.audio-player {
-            grid-template-rows: minmax(0, 1fr) auto;
+            flex-direction: column;
             gap: 12px;
             padding: 14px;
             align-items: stretch;
@@ -433,7 +438,8 @@
         }
 
         .preview.audio-player img {
-            height: 100%;
+            max-height: 140px;
+            object-fit: cover;
         }
 
         .preview.audio-player .audio-preview-copy {
@@ -488,8 +494,14 @@
         .card-meta {
             display: flex;
             justify-content: space-between;
-            gap: 12px;
+            gap: 8px;
             align-items: center;
+            min-width: 0;
+        }
+
+        .card-meta > div:first-child {
+            min-width: 0;
+            overflow: hidden;
         }
 
         .card-title {
@@ -497,6 +509,7 @@
             text-overflow: ellipsis;
             white-space: nowrap;
             font-weight: 700;
+            font-size: 14px;
         }
 
         .badge {
@@ -673,10 +686,6 @@
                 bottom: 12px;
                 width: 150px;
                 padding: 12px;
-            }
-
-            .media-card {
-                max-height: none;
             }
         }
 
@@ -1531,21 +1540,40 @@
             return panel;
         }
 
+        function getArcLayout(index, total) {
+            const MAX_PER_ROW = isMobile ? 10 : 14;
+            const ROW_SPACING = isMobile ? 5.5 : 6;
+            const baseRadius = isMobile ? 11 : 14;
+            const rows = Math.ceil(total / MAX_PER_ROW);
+            const row = Math.floor(index / MAX_PER_ROW);
+            const indexInRow = index - row * MAX_PER_ROW;
+            const countInRow = Math.min(MAX_PER_ROW, total - row * MAX_PER_ROW);
+            const arc = countInRow > 1 ? indexInRow / (countInRow - 1) : 0.5;
+            const spreadDeg = Math.min(140, countInRow * 12);
+            const angle = -(spreadDeg / 2) + arc * spreadDeg;
+            const radians = angle * (Math.PI / 180);
+            const radius = baseRadius + row * ROW_SPACING;
+            const y = 2 + row * 4.5;
+            return {
+                x: Math.sin(radians) * radius,
+                y,
+                z: -Math.cos(radians) * radius - 2,
+                angle,
+                row,
+                rows
+            };
+        }
+
         function buildSceneArtwork(file, index, total) {
             const type = getMediaType(file);
             const assetId = createAsset(file);
             const coverAssetId = type === 'audio' ? createCoverAsset(file) : null;
-            const arc = total > 1 ? index / (total - 1) : 0.5;
-            const angle = -70 + arc * 140;
-            const radians = angle * (Math.PI / 180);
-            const radius = isMobile ? 11 : 14;
-            const x = Math.sin(radians) * radius;
-            const z = -Math.cos(radians) * radius - 2;
+            const layout = getArcLayout(index, total);
             const wrapper = document.createElement('a-entity');
             wrapper.dataset.file = file;
             wrapper.dataset.type = type;
-            wrapper.setAttribute('position', `${x.toFixed(2)} 2 ${z.toFixed(2)}`);
-            wrapper.setAttribute('rotation', `0 ${-angle} 0`);
+            wrapper.setAttribute('position', `${layout.x.toFixed(2)} ${layout.y.toFixed(2)} ${layout.z.toFixed(2)}`);
+            wrapper.setAttribute('rotation', `0 ${-layout.angle} 0`);
 
             const frame = document.createElement('a-box');
             frame.dataset.role = 'frame';
@@ -1796,35 +1824,42 @@
             });
 
             const railCount = Math.max(total, 5);
-            for (let index = 0; index < railCount; index += 1) {
-                const progress = railCount > 1 ? index / (railCount - 1) : 0.5;
-                const angle = -70 + progress * 140;
-                const radians = angle * (Math.PI / 180);
-                const x = Math.sin(radians) * roomRadius;
-                const z = -Math.cos(radians) * roomRadius - 2;
-                const rotation = -angle;
-                const bayX = Math.sin(radians) * (roomRadius + 1.15);
-                const bayZ = -Math.cos(radians) * (roomRadius + 1.15) - 2;
+            const MAX_PER_ROW = isMobile ? 10 : 14;
+            const ROW_SPACING = isMobile ? 5.5 : 6;
+            const totalRows = Math.ceil(railCount / MAX_PER_ROW);
+            for (let row = 0; row < totalRows; row += 1) {
+                const countInRow = Math.min(MAX_PER_ROW, railCount - row * MAX_PER_ROW);
+                const rowRadius = roomRadius + row * ROW_SPACING;
+                const rowY = 2 + row * 4.5;
+                const spreadDeg = Math.min(140, countInRow * 12);
+                for (let i = 0; i < countInRow; i += 1) {
+                    const progress = countInRow > 1 ? i / (countInRow - 1) : 0.5;
+                    const angle = -(spreadDeg / 2) + progress * spreadDeg;
+                    const radians = angle * (Math.PI / 180);
+                    const rotation = -angle;
+                    const bayX = Math.sin(radians) * (rowRadius + 1.15);
+                    const bayZ = -Math.cos(radians) * (rowRadius + 1.15) - 2;
 
-                appendEntity(environment, 'a-box', {
-                    position: `${bayX.toFixed(2)} 2 ${(bayZ - 0.18).toFixed(2)}`,
-                    rotation: `0 ${rotation} 0`,
-                    width: '5.4',
-                    height: '4.6',
-                    depth: '0.18',
-                    color: '#0c1724',
-                    material: 'metalness: 0.24; roughness: 0.45'
-                });
+                    appendEntity(environment, 'a-box', {
+                        position: `${bayX.toFixed(2)} ${rowY.toFixed(2)} ${(bayZ - 0.18).toFixed(2)}`,
+                        rotation: `0 ${rotation} 0`,
+                        width: '5.4',
+                        height: '4.6',
+                        depth: '0.18',
+                        color: '#0c1724',
+                        material: 'metalness: 0.24; roughness: 0.45'
+                    });
 
-                appendEntity(environment, 'a-box', {
-                    position: `${bayX.toFixed(2)} 4.55 ${(bayZ + 0.02).toFixed(2)}`,
-                    rotation: `0 ${rotation} 0`,
-                    width: '5.55',
-                    height: '0.08',
-                    depth: '0.14',
-                    color: index % 2 === 0 ? '#ff4fd8' : '#3de0ff',
-                    material: 'shader: flat; opacity: 0.92'
-                });
+                    appendEntity(environment, 'a-box', {
+                        position: `${bayX.toFixed(2)} ${(rowY + 2.55).toFixed(2)} ${(bayZ + 0.02).toFixed(2)}`,
+                        rotation: `0 ${rotation} 0`,
+                        width: '5.55',
+                        height: '0.08',
+                        depth: '0.14',
+                        color: i % 2 === 0 ? '#ff4fd8' : '#3de0ff',
+                        material: 'shader: flat; opacity: 0.92'
+                    });
+                }
             }
         }
 
