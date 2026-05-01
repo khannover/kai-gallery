@@ -850,6 +850,8 @@
         let mediaFiles = [];
         let audioContext = null;
         let audioUnlocked = false;
+        const otherPlayers = new Map();
+        let lastPlayerUpdate = 0;
 
         const PROXIMITY_AUDIO_TRIGGER_DISTANCE = 5.75;
         const PROXIMITY_AUDIO_MAX_DISTANCE = 11.5;
@@ -1546,6 +1548,31 @@
             requestAnimationFrame(updateSpatialAudioSceneState);
         }
 
+        function updatePlayerPresence() {
+            if (mainCamera && mainCamera.object3D) {
+                const now = Date.now();
+                if (now - lastPlayerUpdate > 100) {
+                    const worldPos = new THREE.Vector3();
+                    mainCamera.object3D.getWorldPosition(worldPos);
+                    
+                    socket.emit('player-update', {
+                        position: {
+                            x: worldPos.x,
+                            y: worldPos.y,
+                            z: worldPos.z
+                        },
+                        rotation: {
+                            x: THREE.MathUtils.radToDeg(mainCamera.object3D.rotation.x),
+                            y: THREE.MathUtils.radToDeg(mainCamera.object3D.rotation.y),
+                            z: THREE.MathUtils.radToDeg(mainCamera.object3D.rotation.z)
+                        }
+                    });
+                    lastPlayerUpdate = now;
+                }
+            }
+            requestAnimationFrame(updatePlayerPresence);
+        }
+
         function buildSceneButton(labelText, position, backgroundColor, textColor, role, onClick) {
             const button = document.createElement('a-entity');
             button.dataset.role = role;
@@ -2141,6 +2168,53 @@
             syncVoteState(payload.item);
         });
 
+        socket.on('player-moved', (data) => {
+            if (data.id === socket.id) return;
+            
+            let avatar = otherPlayers.get(data.id);
+            if (!avatar) {
+                avatar = document.createElement('a-entity');
+                avatar.setAttribute('id', `player-${data.id}`);
+                avatar.classList.add('player-avatar');
+                
+                const prism = document.createElement('a-cone');
+                prism.setAttribute('color', '#ffd166');
+                prism.setAttribute('radius-bottom', '0');
+                prism.setAttribute('radius-top', '0.2');
+                prism.setAttribute('height', '0.5');
+                prism.setAttribute('material', 'metalness: 0.8; roughness: 0.2; emissive: #ffd166; emissiveIntensity: 0.5');
+                prism.setAttribute('position', '0 0 0');
+                
+                const ring = document.createElement('a-ring');
+                ring.setAttribute('color', '#3de0ff');
+                ring.setAttribute('radius-inner', '0.25');
+                ring.setAttribute('radius-outer', '0.3');
+                ring.setAttribute('rotation', '-90 0 0');
+                ring.setAttribute('position', '0 -0.2 0');
+                ring.setAttribute('material', 'shader: flat; transparent: true; opacity: 0.6');
+                
+                avatar.appendChild(prism);
+                avatar.appendChild(ring);
+                environment.appendChild(avatar);
+                otherPlayers.set(data.id, avatar);
+            }
+            
+            // Note: position corresponds to the other player's head, so the prism is already aligned correctly.
+            // But we must apply the position to the avatar entity.
+            avatar.setAttribute('position', `${data.position.x} ${data.position.y} ${data.position.z}`);
+            avatar.setAttribute('rotation', `${data.rotation.x} ${data.rotation.y} ${data.rotation.z}`);
+        });
+
+        socket.on('player-left', (data) => {
+            const avatar = otherPlayers.get(data.id);
+            if (avatar) {
+                if (avatar.parentNode) {
+                    avatar.parentNode.removeChild(avatar);
+                }
+                otherPlayers.delete(data.id);
+            }
+        });
+
         async function init() {
             configureControls();
             setOverlayCollapsed(localStorage.getItem(overlayStateKey) === '1');
@@ -2191,6 +2265,7 @@
             }
 
             requestAnimationFrame(updateSpatialAudioSceneState);
+            requestAnimationFrame(updatePlayerPresence);
         }
 
         init();

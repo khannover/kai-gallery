@@ -10,6 +10,10 @@ services:
     volumes:
       - ./public/media:/app/public/media
     restart: always
+    networks:
+      - default
+      - shared_net
+
   redis:
     image: redis:alpine
     container_name: gallery_db
@@ -17,6 +21,14 @@ services:
       - redis-data:/data
     command: redis-server --appendonly yes
     restart: always
+    networks:
+      - default
+      - shared_net
 
 volumes:
   redis-data:
+
+networks:
+  shared_net:
+    name: bancamp-net
+    external: trueroot@ubuntu-4gb-nbg1-1:/var/docker/kai-gallery# ls

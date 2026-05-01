@@ -243,6 +243,19 @@ io.on('connection', (socket) => {
     acknowledge({ ok: true, item: normalizedItem, count: newVal });
     io.emit('vote-announcement', { item: normalizedItem, count: newVal });
   });
+
+  socket.on('player-update', (data) => {
+    if (!data || !data.position || !data.rotation) return;
+    socket.broadcast.volatile.emit('player-moved', {
+      id: socket.id,
+      position: data.position,
+      rotation: data.rotation
+    });
+  });
+
+  socket.on('disconnect', () => {
+    io.emit('player-left', { id: socket.id });
+  });
 });
 
 server.listen(3000, () => console.log('Galerie laeuft!'));
